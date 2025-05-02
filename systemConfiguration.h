@@ -1,0 +1,2 @@
+#define MEMORY_SIZE 256
+#define STRING_SIZE 256
