@@ -1,16 +1,30 @@
 #include <stdio.h>
+#include <string.h>
 #include "systemConfiguration.h"
-int systemMemory [MEMORY_SIZE][STRING_SIZE];
-
+int systemMemory [MEMORY_SIZE][10];
+int userMemory [MEMORY_SIZE][STRING_SIZE];
 //Function Declaration
 void clearMemory(void);
 void flushMemoryBlock(int);
-
-
+void writeToMemory(int, int, int[]);
+void copyMemory(int, int);
 
 void clearMemory(){
-	for (int i = 0; i < MEMORY_SIZE; i++) for (int j = 0; j < STRING_SIZE; j++) systemMemory[i][j] = 0x7FFFFFFF;
+	for (int i = 0; i < MEMORY_SIZE; i++) for (int j = 0; j < STRING_SIZE; j++) userMemory[i][j] = EMPTY_MEMORY_VALUE;
 }
-void flushMemoryBlock(int memoryBlock){
-	for (int i = 0; i < STRING_SIZE; i++) systemMemory [memoryBlock][i] = 0x7FFFFFFF;
+void flushMemoryBlock(int memoryBlockAddress){
+	for (int i = 0; i < STRING_SIZE; i++) userMemory [memoryBlockAddress][i] = EMPTY_MEMORY_VALUE;
+}
+void writeToMemory(int dataType, int memoryBlockAddress, int dataValue[]){
+	switch (dataType){
+		case 0:
+			userMemory[memoryBlockAddress][0] = dataValue[0];
+			break;
+		case 1:
+			stringCopy(dataValue, userMemory[memoryBlockAddress]);
+			break;
+	}
+}
+void copyMemory(int from, int to){
+	for (int i = 0; userMemory[from][i] != 0x7FFFFFFF && userMemory[from][i] != '\0'; i++) userMemory[to][i] = userMemory[from][i];
 }

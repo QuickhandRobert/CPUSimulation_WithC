@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include "systemConfiguration.h"
-extern int systemMemory[MEMORY_SIZE][STRING_SIZE];
+#include <string.h>
+extern int systemMemory[MEMORY_SIZE];
+extern int userMemory[MEMORY_SIZE][STRING_SIZE];
 int main() {
-	clearMemory();
-	printf("%d", systemMemory[10][10]);
+	int value[10];
+	value [0] = 255;
+	writeToMemory(0, 14, value);
+	printf("%d", userMemory[14][0]);
 }
