@@ -29,7 +29,11 @@ IncludeVersionInfo=0
 SupportXPThemes=0
 CompilerSet=0
 CompilerSettings=0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;1;0;0;0;16;0;0;0
+<<<<<<< HEAD
 UnitCount=7
+=======
+UnitCount=6
+>>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
 
 [VersionInfo]
 Major=1
@@ -80,6 +84,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
+<<<<<<< HEAD
 [Unit7]
 FileName=Arimethic
 Folder=
@@ -91,6 +96,10 @@ BuildCmd=
 
 [Unit4]
 FileName=fileManagement.c
+=======
+[Unit4]
+FileName=Operations.c
+>>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
 CompileCpp=0
 Folder=
 Compile=1
@@ -110,7 +119,11 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit6]
+<<<<<<< HEAD
 FileName=Operations.c
+=======
+FileName=fileManagement.c
+>>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
 CompileCpp=0
 Folder=
 Compile=1

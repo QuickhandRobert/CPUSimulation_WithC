@@ -1,6 +1,9 @@
 #define MEMORY_SIZE 256
 #define STRING_SIZE 256
 #define EMPTY_MEMORY_VALUE 0x7FFFFFFF
+#define DISK_SIZE 1024 * 1024 //1MB Disk size
+#define SECTOR_SIZE 512 //512 Bytes for each sector
+#define LINE_BUFFER_SIZE 128
 #define ADD 1
 #define SUB 2
 #define MUL 3
@@ -20,3 +23,10 @@
 #define AND 18
 #define NOT 19
 #define XOR 20
+<<<<<<< HEAD
+=======
+#define XNOT 21
+#define NAND 22
+#define NOR 23
+
+>>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
