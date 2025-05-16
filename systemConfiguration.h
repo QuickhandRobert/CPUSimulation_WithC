@@ -23,10 +23,6 @@
 #define AND 18
 #define NOT 19
 #define XOR 20
-<<<<<<< HEAD
-=======
 #define XNOT 21
 #define NAND 22
 #define NOR 23
-
->>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
