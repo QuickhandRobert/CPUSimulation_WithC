@@ -20,7 +20,3 @@
 #define AND 18
 #define NOT 19
 #define XOR 20
-#define XNOT 21
-#define NAND 22
-#define NOR 23
-#define 
