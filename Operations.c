@@ -7,6 +7,7 @@ void AND(int, int, int);
 void NOT(int);
 void XOR(int, int, int);
 
+//Global Variables
 extern int systemMemory[MEMORY_SIZE];
 extern int userMemory[MEMORY_SIZE][STRING_SIZE];
 
