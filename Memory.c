@@ -12,9 +12,12 @@ void copyMemory(int, int);
 int systemMemory [MEMORY_SIZE][10];
 int userMemory [MEMORY_SIZE][STRING_SIZE];
 struct metadata metadataMemory[NUMBER_OF_FILES]; //Max Number of Files
-int numberOfFiles = 0;
+int freeSectors[NUMBER_OF_FILES] = {0};
 void clearMemory(){
 	for (int i = 0; i < MEMORY_SIZE; i++) for (int j = 0; j < STRING_SIZE; j++) userMemory[i][j] = EMPTY_MEMORY_VALUE;
+}
+void metadataMemoryInit(){
+	for (int i = 0; i < NUMBER_OF_FILES; i++) metadataMemory[i].isFree = 1;
 }
 void flushMemoryBlock(int memoryBlockAddress){
 	for (int i = 0; i < STRING_SIZE; i++) {

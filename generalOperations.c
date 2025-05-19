@@ -30,3 +30,11 @@ int stringCut(char s1[], char s2[], int start, int end, int seperator) {
 	s1[i] = '\0';
 	return i;
 }
+int isStringEmpty(char str[]){
+	if (str[0] == '\0') return 1;
+	return 0;
+}
+int isLineEmpty(char str[]){
+	if (str[0] == '\n') return 1;
+	return 0;
+}

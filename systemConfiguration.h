@@ -32,4 +32,5 @@ struct metadata {
 	char filename[FILENAME_SIZE];
 	int size;
 	int start_sector;
+	int isFree;
 };
