@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
-#include "systemConfiguration.h"
-extern int systemMemory[MEMORY_SIZE];
-extern int userMemory[MEMORY_SIZE][STRING_SIZE];
+#include "headers.h"
+extern systemRAM systemMemory[MEMORY_SIZE];
+extern userRAM userMemory [MEMORY_SIZE];
 extern struct metadata metadataMemory[DISK_SIZE / SECTOR_SIZE];
 extern int freeSectors[NUMBER_OF_FILES];
 //Function Declaration
@@ -31,6 +31,7 @@ void metadata_init(FILE *drive){
 		sector_init(metadataMemory[i].start_sector, metadataMemory[i].size, 1);
 		fgets(buffer, LINE_BUFFER_SIZE, drive);
 		metadataMemory[i].isFree = 0;
+		//Could be done using sscanf, to be investiagted later
 	}
 }
 int sectorSearch(){

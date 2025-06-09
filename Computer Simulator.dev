@@ -23,7 +23,7 @@ OverrideOutputName=Computer Simulator.exe
 HostApplication=
 UseCustomMakefile=0
 CustomMakefile=
-CommandLine=
+CommandLine=drive.bin
 Folders=
 IncludeVersionInfo=0
 SupportXPThemes=0
@@ -32,7 +32,7 @@ CompilerSettings=0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;1;0;0;0;16;0;0;0
 <<<<<<< HEAD
 UnitCount=7
 =======
-UnitCount=6
+UnitCount=7
 >>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
 
 [VersionInfo]
@@ -55,7 +55,7 @@ AutoIncBuildNr=0
 SyncProduct=1
 
 [Unit1]
-FileName=fileManagement.c
+FileName=Harddrive.c
 CompileCpp=0
 Folder=
 Compile=1
@@ -86,18 +86,19 @@ BuildCmd=$(CC) -c Memory.c -o Memory.o $(CFLAGS)
 <<<<<<< HEAD
 
 [Unit7]
-FileName=Arimethic
+FileName=CPU.c
 Folder=
 Compile=1
 Link=1
 Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
+CompileCpp=0
 
 [Unit4]
 FileName=fileManagement.c
 =======
-FileName=systemConfiguration.h
+FileName=headers.h
 >>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
 CompileCpp=0
 Folder=
