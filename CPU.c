@@ -2,7 +2,7 @@
 #include "headers.h"
 #include <string.h>
 #include <ctype.h>
-
+#include <stdlib.h>
 /*
 IR:
 
@@ -46,6 +46,7 @@ static char CONSTSTR[CONSTANT_STRINGS][STRING_SIZE];
 
 //Global Variables
 int memoryAddress[2] = {0};
+char errors[ERRORS][STRING_SIZE];
 
 unsigned long fetch(char buffer[SYNTAX_LIMIT][STRING_SIZE]) {
 	//Memory stuff shall be handled by a seperate function
@@ -56,51 +57,101 @@ unsigned long fetch(char buffer[SYNTAX_LIMIT][STRING_SIZE]) {
 	R_PC++;
 	return a;
 }
-void makeRegisterPointers(int n, unsigned long int *hashed, int **reg) {
+void makeRegisterPointers(int n, registerP *registers) {
 	for (int i = 0; i < n; i++) {
-		switch(hashed[i]) {
+		switch(registers[i].hashed) {
 			case SP:
-				reg[i] = &R_SP;
+				registers[i].p = &R_SP;
+				registers[i].type = 0;
 				break;
 			case AC:
-				reg[i] = &R_AC;
+				registers[i].p = &R_AC;
+				registers[i].type = 0;
 				break;
 			case MAR:
-				reg[i] = &R_MAR;
+				registers[i].p = &R_MAR;
+				registers[i].type = 0;
 				break;
 			case MDR:
-				reg[i] = &R_MDR[0];
+				registers[i].p = &R_MDR[0];
+				registers[i].type = 0;
 				break;
 			case X:
-				reg[i] = &R_X;
+				registers[i].p = &R_X;
+				registers[i].type = 0;
 				break;
 			case Y:
-				reg[i] = &R_Y;
+				registers[i].p = &R_Y;
+				registers[i].type = 0;
 				break;
 			case Z:
-				reg[i] = &R_Z;
+				registers[i].p = &R_Z;
+				registers[i].type = 0;
+				break;
+			case S:
+				registers[i].p = R_S;
+				registers[i].type = 1;
+				break;
+			case A:
+				registers[i].p = R_A;
+				registers[i].type = 1;
 				break;
 			default:
-				reg[i] = NULL;
+				registers[i].p = NULL;
+				registers[i].type = -1;
 				break;
 		}
 	}
 }
-void makeStringRegisterPointers(int n, unsigned long *hashed, char **reg) {
-	for (int i = 0; i < n; i++) {
-		switch (hashed[i]) {
-			case S:
-				reg[i] = R_S;
+//void makeStringRegisterPointers(int n, registerP *registers) {
+//	for (int i = 0; i < n; i++) {
+//		switch (registers[i].hashed) {
+//			case S:
+//				registers[i].p = R_S;
+//				break;
+//			case A:
+//				registers[i].p = R_A;
+//				break;
+//			default:
+//				registers[i].p = NULL;
+//				break;
+//
+//		}
+//	}
+//}
+void error_def() {
+	char buffer[STRING_SIZE];
+	char *res;
+	int index;
+	stringCut(buffer, *R_IR, 1, -1, ' ');
+	index = atoi(buffer);
+	strcpy(errors[index], R_IR[1]);
+}
+void print_error(registerP *registers) {
+	char buffer[STRING_SIZE];
+	char *res;
+	int index, len;
+	int i, j;
+	stringCut(buffer, *R_IR, 1, -1, ' ');
+	index = atoi(buffer);
+	len=strlen(errors[index]);
+	for (i = 0, j = 1; i < len; i++) {
+		if (errors[index][i] == '#') {
+			switch (registers[j].type){
+			case 0:
+				printf("%d", *(int *)registers[j].p);
 				break;
-			case A:
-				reg[i] = R_A;
+			case 1:
+				printf("%s", (char *)registers[j].p);
 				break;
-			default:
-				reg[i] = NULL;
-				break;
-
+			}
+			j++;
+		}
+		else {
+			putchar(errors[index][i]);
 		}
 	}
+
 }
 void loadToMemory(FILE *drive, char *filename) {
 	char buffer[LINE_BUFFER_SIZE];
@@ -131,40 +182,39 @@ void loadToMemory(FILE *drive, char *filename) {
 	//Memory stuff shall be handled by a seperate function
 }
 void decode_execute(unsigned long instruction, FILE *drive) {
-	unsigned long hashedRegisters[SYNTAX_LIMIT];
-	int *registers[SYNTAX_LIMIT];
+	registerP registers[SYNTAX_LIMIT];
 	char *stringRegisters[SYNTAX_LIMIT];
 	char buffer2[STRING_SIZE];
 	switch (instruction) {
 		case OR:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_OR(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_OR((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case AND:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_AND(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_AND((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case NOT:
-			hashRegisters(1, R_IR, hashedRegisters);
-			makeRegisterPointers(1, hashedRegisters, registers);
-			F_NOT(registers[0]);
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			F_NOT((int *)registers[0].p);
 			break;
 		case XOR:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_XOR(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_XOR((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case NAND:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_NAND(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_NAND((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case NOR:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_NOR(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_NOR((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case FOPEN:
 			openFile(R_IR[0], drive);
@@ -173,14 +223,14 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			createFile(R_IR[0], drive);
 			break;
 		case RL:
-			hashRegisters(1, R_IR, hashedRegisters);
-			makeRegisterPointers(1, hashedRegisters, registers);
-			readLine(R_S, R_IR[2], 1, drive);
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			readLine((char *)registers[0].p, R_IR[2], 1, drive);
 			break;
 		case RNC:
-			hashRegisters(2, R_IR, hashedRegisters);
-			makeRegisterPointers(2, hashedRegisters, registers);
-			*registers[1] = readChar(R_IR[2], *registers[0], drive);
+			hashRegisters(2, R_IR, registers);
+			makeRegisterPointers(2, registers);
+			*(char *)registers[1].p = readChar(R_IR[2], registers[0].p, drive);
 			break;
 		case PF:
 			break;
@@ -189,44 +239,44 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 		case FSIZE:
 			break;
 		case ADD:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_ADD(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_ADD((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case SUB:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_SUB(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_SUB((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case DIV:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_DIV(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_DIV((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case MUL:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_MUL(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_MUL((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case LO:
-			hashRegisters(3, R_IR, hashedRegisters);
-			makeRegisterPointers(3, hashedRegisters, registers);
-			F_LO(registers[0], registers[1], registers[2]);
+			hashRegisters(3, R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_LO((int *)registers[0].p, (int *)registers[1].p, (int *)registers[2].p);
 			break;
 		case INC:
-			hashRegisters(1, R_IR, hashedRegisters);
-			makeRegisterPointers(1, hashedRegisters, registers);
-			F_INC(registers[0]);
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			F_INC((int *)registers[0].p);
 			break;
 		case DEC:
-			hashRegisters(1, R_IR, hashedRegisters);
-			makeRegisterPointers(1, hashedRegisters, registers);
-			F_DEC(registers[0]);
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			F_DEC((int *)registers[0].p);
 			break;
 		case NEG:
-			hashRegisters(1, R_IR, hashedRegisters);
-			makeRegisterPointers(1, hashedRegisters, registers);
-			F_NEG(registers[0]);
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			F_NEG((int *)registers[0].p);
 			break;
 		case COPY:
 			break;
@@ -244,23 +294,25 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			writeToMemory(R_MDR[1], 1, R_SP, -1, R_MDR[0], MDRStringHandler);
 			break;
 		case MEMLOAD:
-			hashRegisters(1, R_IR, hashedRegisters);
-			makeRegisterPointers(1, hashedRegisters, registers);
-			*registers[0] = readFromMemory(-1, 1, R_MAR, -1, R_S);
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			*(int *)registers[0].p = readFromMemory(-1, 1, R_MAR, -1, (char *)registers[0].p);
 			break;
 		case PMEMLOAD:
-			hashRegisters(1, R_IR, hashedRegisters);
-			makeRegisterPointers(1, hashedRegisters, registers);
-			*registers[0] = readFromMemory(-1, 1, R_SP, -1, R_S);
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			*(int *)registers[0].p = readFromMemory(-1, 1, R_SP, -1, (char *)registers[0].p);
 			break;
 		case REGSET:
-			hashRegisters(1, R_IR, hashedRegisters);
-			if (strcmp(R_IR[1], "INT") == 0) {
-				makeRegisterPointers(1, hashedRegisters, registers);
-				*registers[0] = atoi(R_IR[2]);
-			} else {
-				makeStringRegisterPointers(1, hashedRegisters, stringRegisters);
-				strcpy(stringRegisters[0], R_IR[2]);
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			switch(registers[0].type){
+				case 0:
+					*(int *)registers[0].p = atoi(R_IR[1]);
+					break;
+				case 1:
+					strcpy((char *)registers[0].p, R_IR[1]);
+					break;
 			}
 			break;
 		case MARSET:
@@ -271,15 +323,26 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 		case EQ:
 			break;
 		case INPUT:
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			switch(registers[0].type){
+				case 0:
+					*(int *)registers[0].p = read_int('\n');
+					break;
+				case 1:
+					gets((char *)registers[0].p);
+			}
 			break;
 		case OUTPUT:
-			hashRegisters(2, R_IR, hashedRegisters);
-			if (strcmp(R_IR[0], "INT") == 0) {
-				makeRegisterPointers(2, hashedRegisters, registers);
-				printf("%d", *registers[1]);
-			} else {
-				makeStringRegisterPointers(2, hashedRegisters, stringRegisters);
-				printf("%s", stringRegisters[1]);
+			hashRegisters(1, R_IR, registers);
+			makeRegisterPointers(1, registers);
+			switch(registers[0].type){
+				case 0:
+					printf("%d", *(int *)registers[0].p);
+					break;
+				case 1:
+					printf("%s", (char *)registers[0].p);
+					break;
 			}
 			break;
 		case CLS:
@@ -300,12 +363,17 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 		case CONST:
 			break;
 		case ERR:
+			error_def();
 			break;
 		case CERR:
+			hashRegisters(7, R_IR, registers);
+			makeRegisterPointers(7, registers);
+			print_error(registers);
 			break;
 		case RUNPROC:
 			break;
 	}
+
 }
 void runCPU(FILE *drive) {
 	R_PC = 0;

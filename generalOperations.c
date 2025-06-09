@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "headers.h"
 #include <string.h>
+#include <stdlib.h>
 //Function Declaration
 int stringLength(int []);
 void stringCopy(int[], int[]);
@@ -48,9 +49,29 @@ char *strtok_fixed (char *s, char *delim, char seperator) {
 	}
 	return token;
 }
-int stringCut(char s1[], char s2[], int start, int end, int seperator) {
-	int length = strlen(s2);
 
+char *fgets_fixed(char *buf, int n, FILE *fp, char separator) {
+    if (n <= 1 || !buf || !fp) return NULL;
+    int i, c;
+    int in_delimiter = 0;
+    *buf = '\0';
+    for (i = 0; i < n - 1; i++) {
+        c = fgetc(fp);
+        if (c == EOF) {
+            if (i == 0) return NULL;
+            break;
+        }
+        buf[i] = (char)c;
+        buf[i + 1] = '\0';
+        if (c == separator)
+            in_delimiter = !in_delimiter;
+        else if (c == '\n' && !in_delimiter)
+            break;
+    }
+    return buf;
+}
+int stringCut(char s1[], char s2[], int start, int end, char seperator) {
+	int length = strlen(s2);
 	int i;
 	if (start == -1) start = 0;
 	if (end == -1)
@@ -77,13 +98,28 @@ unsigned long hashStr(char *str) {
 		hash = ((hash << 5) + hash) + *c;
 	return hash;
 }
-void hashRegisters(int n, char buffer[10][STRING_SIZE], unsigned long int *registers) {
+void hashRegisters(int n, char buffer[10][STRING_SIZE], registerP *registers) {
 	for (int i = 0; i < n; i++) {
-		registers[i] = hashStr(buffer[i]);
+		registers[i].hashed = hashStr(buffer[i]);
 	}
 }
 void removeNewLine(char *str) {
-	char *c;
-	for (c = str; *c != '\n' && *c != '\0'; c++);
-	*c = '\0';
+//	char *c;
+//	for (c = str; (*c != '\n' && *(c+1) == '\0') && *c != '\0'; c++);
+//	*c = '\0';
+	char *c = (str + strlen(str) - 1);
+	*c = *c == '\n' ? '\0' : *c;
+}
+int read_int(char seperator) {
+	int c;
+	int output = 0, isNegative = 0;
+	while ((c = getchar()) != seperator) {
+		if (c == '-') {
+			isNegative = 1;
+			continue;
+		}
+		output = output * 10 + (c - '0');
+	}
+	output = isNegative ? -output : output;
+	return output;
 }

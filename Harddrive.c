@@ -18,7 +18,7 @@ void metadata_init(FILE *drive){
 	char buffer[LINE_BUFFER_SIZE] = {0};
 	char secondBuffer[LINE_BUFFER_SIZE] = {0};
 	freeSectors[0] = 1; //First sector is preserved for the metadata
-	fgets(buffer, LINE_BUFFER_SIZE, drive);
+	fgets_fixed(buffer, LINE_BUFFER_SIZE, drive, '\"');
 	for (i = 0; strcmp(buffer, "END\n") != 0 && strcmp(buffer,"END") != 0; i++){
 		start = 0;
 		if (strcmp(buffer, "") == 0) return;
@@ -29,7 +29,7 @@ void metadata_init(FILE *drive){
 		stringCut(secondBuffer, buffer, start, -1, -1);
 		metadataMemory[i].start_sector = atoi(secondBuffer);
 		sector_init(metadataMemory[i].start_sector, metadataMemory[i].size, 1);
-		fgets(buffer, LINE_BUFFER_SIZE, drive);
+		fgets_fixed(buffer, LINE_BUFFER_SIZE, drive, '\"');
 		metadataMemory[i].isFree = 0;
 		//Could be done using sscanf, to be investiagted later
 	}
@@ -68,9 +68,9 @@ void appendToFile(char text[], char filename[], FILE *drive){
 	fpos_t pos;
 	fgetpos(drive, &pos);
 	char buffer[STRING_SIZE];
-	fgets(buffer, STRING_SIZE, drive);
+	fgets_fixed(buffer, STRING_SIZE, drive, '\"');
 	while (strcmp(buffer, "END\n") != 0 && strcmp(buffer,"END") != 0)	{
-		fgets(buffer, STRING_SIZE, drive);
+		fgets_fixed(buffer, STRING_SIZE, drive, '\"');
 	}
 	fseek(drive, -4, SEEK_CUR);
 	fputs(text, drive);
@@ -105,13 +105,13 @@ void deleteFile(char filename[], FILE *drive){
 void readLine(char buffer[], char filename[], int resetPos, FILE *drive){
 	fpos_t pos;
 	if (!isStringEmpty(filename)) openFile (filename, drive);
-	fgets(buffer, LINE_BUFFER_SIZE, drive);
+	fgets_fixed(buffer, LINE_BUFFER_SIZE, drive, '\"');
 	if (resetPos){
 		fgetpos(drive, &pos);
 		pos /= SECTOR_SIZE;
 		pos *= SECTOR_SIZE;
 		fsetpos(drive, &pos);
-	}
+	} 
 }
 char readChar (char filename[], int n, FILE *drive){
 	if (!isStringEmpty(filename)) openFile (filename, drive);

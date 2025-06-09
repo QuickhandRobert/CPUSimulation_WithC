@@ -64,7 +64,7 @@ void writeToMemory(int dataType, int memoryType, int memoryBlockAddress0, int me
 			break;
 	}
 }
-long long int readFromMemory(int dataType, int memoryType, int memoryBlockAddress0, int memoryBlockAddress1, char *buffer) {
+unsigned long readFromMemory(int dataType, int memoryType, int memoryBlockAddress0, int memoryBlockAddress1, char *buffer) {
 	switch(memoryType) {
 		case 0:
 			if (memoryBlockAddress1 == -1) {

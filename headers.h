@@ -10,6 +10,7 @@
 #define HASH_KEY 5381
 #define SYNTAX_LIMIT 7
 #define CONSTANT_STRINGS 64
+#define ERRORS 64
 //*****************************************
 //Instructions
 #define OR 5862598
@@ -87,3 +88,8 @@ typedef struct userRAM {
 	int type;
 	int isFree;
 } userRAM;
+typedef struct registerP {
+	void *p;
+	int type; // 0 for integer, 1 for string
+	unsigned long hashed;
+} registerP;
