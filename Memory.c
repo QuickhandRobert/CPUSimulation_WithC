@@ -2,83 +2,118 @@
 #include <string.h>
 #include "headers.h"
 
-//Function Declaration
-//void clearMemory(void);
-//void flushMemoryBlock(int);
-//void writeToMemory(int, int, int, char*);
-//void copyMemory(int, int);
-
 //Global Variables
 systemRAM systemMemory[MEMORY_SIZE];
 userRAM userMemory [MEMORY_SIZE];
 char stringMemory[MEMORY_SIZE][STRING_SIZE];
-metadata metadataMemory[NUMBER_OF_FILES]; //Max Number of Files
-int freeSectors[NUMBER_OF_FILES] = {0};
+//Error Handler
+extern enum errors_def error_code;
+extern char error_buff[STRING_SIZE];
+/******************************************************
+* Func: memAddress_check                              *
+* Params: const int memoryAddress:                    *
+*                                                     *
+* Return: Input address exists or not                 *
+******************************************************/
+bool memAddress_check(const int memoryAddress) {
+	if (memoryAddress > MEMORY_SIZE) {
+		error_code = MEMORY_LIMIT_EXCEEDED;
+		sprintf(error_buff, "%d", memoryAddress);
+		p_error(false);
+		return false;
+	}
+	else
+		return true;
+}
+/******************************************************
+* Func: memoryInit                                    *
+* Params: int memoryType: self-explanatory            *
+*                                                     *
+* Return: none                                        *
+* Desc: Frees every memoryslot of a given memorytype  *
+******************************************************/
 void memoryInit(int memoryType) {
 	switch(memoryType) {
-		case 0:
-			for (int i = 0; i < MEMORY_SIZE; i++){
+		case SYSTEM_RAM:
+			for (int i = 0; i < MEMORY_SIZE; i++)
 				systemMemory[i].isFree = 1;
-				for (int j = 0; j < SYNTAX_LIMIT; j++)
-					systemMemory[i].data[j][0] = '\0';
-			} 
 			break;
-		case 1:
-			for (int i = 0; i < MEMORY_SIZE; i++) userMemory[i].isFree = 1;
+		case USER_RAM:
+			for (int i = 0; i < MEMORY_SIZE; i++)
+				userMemory[i].isFree = true;
 	}
 }
-void metadataMemoryInit() {
-	for (int i = 0; i < NUMBER_OF_FILES; i++) metadataMemory[i].isFree = 1;
-}
-void flushMemoryAddress(int memoryBlockAddress, int memoryType) {
+/************************************************************
+* Func: flushMemoryAddress                                  *
+* Params: const int memoryBlockAddress                      *
+*         const int memoryType (Both self-explanatory)      *
+*                                                           *
+* Return: none                                              *
+************************************************************/
+void flushMemoryAddress(const int memoryBlockAddress, const int memoryType) {
+	if (!memAddress_check(memoryBlockAddress)) //Sanity check
+		return;
 	switch(memoryType) {
-		case 0:
+		case SYSTEM_RAM:
 			systemMemory[memoryBlockAddress].isFree = 1;
 			break;
-		case 1:
+		case USER_RAM:
 			userMemory[memoryBlockAddress].isFree = 1;
 	}
 }
-void writeToMemory(int dataType, int memoryType, int memoryBlockAddress0, int memoryBlockAddress1, unsigned long long int number, char *str) {
+/*********************************************************************************
+* Func: writeToMemory                                                            *
+* Params: const int dataType: M_INT or M_STR                                     *
+*         const int memoryType: SYSTEM_RAM or USER_RAM                           *
+*         const index0: Memory Address                                           *
+*         const index1: Parameter index (SYSTEM_RAM only)                        *
+*         const unsigned long number: Hashed value of the current instruction    *
+*         char *str: String Output                                               *
+*                                                                                *
+*         Return: none                                                           *
+*********************************************************************************/
+void writeToMemory(const int dataType, const int memoryType, const int index0, const int index1, const unsigned long number, char *str) {
+	if (!memAddress_check(index0)) //Sanity check
+		return;
 	switch(memoryType) {
-		case 0:
-			if (memoryBlockAddress1 == -1)
-				systemMemory[memoryBlockAddress0].instruction = number;
+		case SYSTEM_RAM:
+			if (index1 == -1)
+				systemMemory[index0].instruction = number;
 			else {
 				removeNewLine(str);
-				strcpy(systemMemory[memoryBlockAddress0].data[memoryBlockAddress1], str);
-				systemMemory[memoryBlockAddress0].isFree = 0;
+				strcpy(systemMemory[index0].data[index1], str);
+				systemMemory[index0].isFree = false;
 			}
 			break;
-		case 1:
-			switch (dataType) {
-				case 0:
-					userMemory[memoryBlockAddress0].data = number;
-					break;
-				case 1:
-					strcpy(stringMemory[memoryBlockAddress0], str);
-					break;
-			}
-			userMemory[memoryBlockAddress0].type = dataType;
-			userMemory[memoryBlockAddress0].isFree = 0;
+		case USER_RAM:
+			userMemory[index0].data = (int)number;
+			userMemory[index0].isFree = false;
 			break;
 	}
 }
-unsigned long readFromMemory(int dataType, int memoryType, int memoryBlockAddress0, int memoryBlockAddress1, char *buffer) {
+/*********************************************************************************
+* Func: readFromMemory                                                           *
+* Params: const int dataType: M_INT or M_STR                                     *
+*         const int memoryType: SYSTEM_RAM or USER_RAM                           *
+*         const index0: Memory Address                                           *
+*         const index1: Parameter index (SYSTEM_RAM only)                        *
+*         char *buffer: String Output                                            *
+*                                                                                *
+*         Return: Read value                                                     *
+*********************************************************************************/
+unsigned long readFromMemory(const int dataType, const int memoryType, const int memoryBlockAddress0, const int memoryBlockAddress1, char *buffer) {
+	if (!memAddress_check(memoryBlockAddress0))
+		return 1;
 	switch(memoryType) {
-		case 0:
+		case SYSTEM_RAM:
 			if (memoryBlockAddress1 == -1) {
 				return systemMemory[memoryBlockAddress0].instruction;
 			} else {
 				strcpy(buffer, systemMemory[memoryBlockAddress0].data[memoryBlockAddress1]);
 			}
 			break;
-		case 1:
-			if (userMemory[memoryBlockAddress0].type == 0) {
-				return userMemory[memoryBlockAddress0].data;
-			} else {
-				strcpy(buffer, stringMemory[memoryBlockAddress0]);
-			}
+		case USER_RAM:
+			return userMemory[memoryBlockAddress0].data;
 	}
 }
 

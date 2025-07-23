@@ -1,32 +1,20 @@
 #include <stdio.h>
+#include <windows.h>
 #include "headers.h"
 #include <string.h>
 #include <stdlib.h>
-//Function Declaration
-int stringLength(int []);
-void stringCopy(int[], int[]);
-//int stringCut(int [], int[], int, int, int);
 //Global Variables
-static char *olds;
-int stringLength(int s1[]) {
-	int i;
-	for (i = 0; s1[i] != '\0'; i++);
-	return i;
-}
-
-//int lineEnd(char *str){
-//	char c;
-//	for (c = str; *c != ' ' && *c != '\n'; c++)
-//		;
-//	if (c == '\n') return 1;
-//	return 0;
-//}
-void stringCopy(int s1[], int s2[]) {
-	int length = stringLength(s2);
-	for (int i = 0; i < STRING_SIZE && i < length; i++) s1[i] = s2[i];
-	s1[length] = '\0';
-}
-char *strtok_fixed (char *s, char *delim, char seperator) {
+static char *olds; //Used by strtok()
+static char *IR_olds;
+/*****************************************************************************************
+* Func: strtok_fixed                                                                     *
+* Params: char *s: Input String (NULL To Use Previous)                                   *
+*         char *delim: Delimeter to Tokenize by                                          *
+*         char seperator: Ignore any delimeters inside A couple of this character        *
+*                                                                                        *
+*         Return: char *: Character pointer to start of the tokenized string             *
+*****************************************************************************************/
+char *strtok_fixed (char *s, const char *delim, const char seperator) {
 	char *token;
 	if (s == NULL)
 		s = olds;
@@ -49,48 +37,82 @@ char *strtok_fixed (char *s, char *delim, char seperator) {
 	}
 	return token;
 }
-
-char *fgets_fixed(char *buf, int n, FILE *fp, char separator) {
-    if (n <= 1 || !buf || !fp) return NULL;
-    int i, c;
-    int in_delimiter = 0;
-    *buf = '\0';
-    for (i = 0; i < n - 1; i++) {
-        c = fgetc(fp);
-        if (c == EOF) {
-            if (i == 0) return NULL;
-            break;
-        }
-        buf[i] = (char)c;
-        buf[i + 1] = '\0';
-        if (c == separator)
-            in_delimiter = !in_delimiter;
-        else if (c == '\n' && !in_delimiter)
-            break;
-    }
-    return buf;
+/*********************************************************************************************
+* Func: fgets_fixed                                                                          *
+* Params: char *buf: Where to write the string to                                            *
+*         const int n: Maximum Number of Characters                                          *
+*         FILE *fp: Pointer to drive.bin                                                     *
+*         char seperator: Ignore newline characters (\n) inside a couble of this chacter     *
+*                                                                                            *
+* Return: Char pointer to start of the output string                                         *
+*********************************************************************************************/
+char *fgets_fixed(char *buf, int n, FILE *fp, char separator, bool resetPos) {
+	if (n <= 1 || !fp) return NULL;
+	int i, c;
+	fpos_t cur;
+	fgetpos(fp, &cur);
+	bool in_delimiter = false;
+	if (buf)
+		*buf = '\0';
+	for (i = 0; i < n - 1; i++) {
+		c = fgetc(fp);
+		if (c == EOF) {
+			if (i == 0) return NULL;
+			break;
+		}
+		if (buf) {
+			buf[i] = (char)c;
+			buf[i + 1] = '\0';
+		}
+		if (c == separator)
+			in_delimiter = !in_delimiter;
+		else if (c == '\n' && !in_delimiter)
+			break;
+	}
+	if (resetPos)
+		fsetpos(fp, &cur);
+	return buf;
 }
-int stringCut(char s1[], char s2[], int start, int end, char seperator) {
-	int length = strlen(s2);
-	int i;
-	if (start == -1) start = 0;
-	if (end == -1)
-		if (seperator == -1) for (i = start; i < length; i++) s1[i - start] = s2[i];
-		else for (i = start; s2[i] != seperator; i++) {
-				s1[i - start] = s2[i];
-			} else for(i = start; i < end; i++) s1[i - start] = s2[i];
-
-	s1[i] = '\0';
-	return i;
+/*****************************************************************
+* Func: strcut                                                   *
+* Params: char *dest: Destination                                *
+*         char *source: Source                                   *
+*         const int start: Starting Point (-1 For beginning)     *
+*         const int end: Ending Point (-1 for end of string)     *
+*                                                                *
+*         Return: Char pointer to the output string              *
+*****************************************************************/
+char *strcut(char *dest, char *source, const int start, const int end) {
+	char *s = start == -1 ? dest : (source + start);
+	int s_end = end == -1 ? strlen(source) : end;
+	strncpy(dest, s, s_end - start + 1);
 }
-int isStringEmpty(char str[]) {
-	if (str[0] == '\0') return 1;
-	return 0;
+/********************************************
+* Func: isStringEmpty                       *
+* Params: const char *str: Input String     *
+*                                           *
+* Return: True or False                     *
+********************************************/
+bool isStringEmpty(const char *str) {
+	if (str[0] == '\0') return true;
+	return false;
 }
-int isLineEmpty(char str[]) {
+/********************************************
+* Func: isLineEmpty                         *
+* Params: const char *str: Input String     *
+*                                           *
+* Return: True or False                     *
+********************************************/
+int isLineEmpty(char *str) {
 	if (str[0] == '\n') return 1;
 	return 0;
 }
+/********************************************
+* Func: hashStr                             *
+* Params: char *str: Input String           *
+*                                           *
+* Return: Hashed String                     *
+********************************************/
 unsigned long hashStr(char *str) {
 	unsigned long hash = HASH_KEY;
 	char *c;
@@ -98,28 +120,159 @@ unsigned long hashStr(char *str) {
 		hash = ((hash << 5) + hash) + *c;
 	return hash;
 }
-void hashRegisters(int n, char buffer[10][STRING_SIZE], registerP *registers) {
+/****************************************************************
+* Func: hashRegisters                                           *
+* Params: const int n: Total Number of Registers                *
+*         char **buffer: Current Instruction Register Value     *
+*         registerP *registers: List of Registers (Array)       *
+*                                                               *
+* Return: none                                                  *
+****************************************************************/
+void hashRegisters(const int n, char buffer[SYNTAX_LIMIT][STRING_SIZE], registerP *registers) {
+	char *res;
+	registerP tmp;
+	char buff_i[STRING_SIZE];
 	for (int i = 0; i < n; i++) {
-		registers[i].hashed = hashStr(buffer[i]);
+		strcpy(buff_i, buffer[i]); //Backup original string, strtok tends to fuck the original one up...
+		if (res = strstr(buff_i, INDEX_SEPERATOR)){
+			*res = '\0';
+			registers[i].hashed = hashStr(buff_i);
+			res++;
+			if (isdigit((int)*res))
+				registers[i].index = atoi(res);
+			else {
+				tmp.hashed = hashStr(res);
+				makeRegisterPointers(1, &tmp);
+				registers[i].index = *(int *)tmp.p;	
+			}
+		}
+		else {
+			registers[i].hashed = hashStr(buff_i);
+			registers[i].index = 0;
+		}
+		
+		
 	}
 }
+/********************************************
+* Func: removeNewLine                       *
+* Params: char *str: Input String           *
+*                                           *
+* Return: none                              *
+********************************************/
 void removeNewLine(char *str) {
-//	char *c;
-//	for (c = str; (*c != '\n' && *(c+1) == '\0') && *c != '\0'; c++);
-//	*c = '\0';
 	char *c = (str + strlen(str) - 1);
 	*c = *c == '\n' ? '\0' : *c;
 }
-int read_int(char seperator) {
-	int c;
-	int output = 0, isNegative = 0;
-	while ((c = getchar()) != seperator) {
-		if (c == '-') {
-			isNegative = 1;
-			continue;
-		}
-		output = output * 10 + (c - '0');
+/**********************************************************************
+* Func: humanSize                                                     *
+* Params: long long int bytes: Size in bytes                          *
+*                                                                     *                
+* Return: char * to Humanized size string                             *
+* Desc: Humanizes a given amount of bytes for easier understanding,   *
+*       Using suffixes such as KB, MB, GB, etc                        *
+* Note: not my code, credits to dgoguerra                             *
+**********************************************************************/
+char *humanSize(long long int bytes) {
+	char *suffix[] = {"B", "KB", "MB", "GB", "TB"};
+	char length = sizeof(suffix) / sizeof(suffix[0]);
+	int i = 0;
+	double dblBytes = bytes;
+
+	if (bytes > 1024) {
+		for (i = 0; (bytes / 1024) > 0 && i<length-1; i++, bytes /= 1024)
+			dblBytes = bytes / 1024.0;
 	}
-	output = isNegative ? -output : output;
+
+	static char output[200];
+	sprintf(output, "%.02lf %s", dblBytes, suffix[i]);
 	return output;
+}
+/************************************************************************
+* Func: fgets_lineByLine                                                *
+* Params: FILE *f                                                       *
+*         char buffer[][STRING_SIZE]: Destination buffer                *
+*                                                                       *
+* Return: Number of read lines                                          *
+* Desc: Reads a file line by line and outputs them to a given buffer    *
+************************************************************************/
+int fgets_lineByLine(FILE *f, char buffer[][STRING_SIZE]) {
+	fpos_t f_zero = 0;
+	int i;
+	fsetpos(f, &f_zero);
+	for (i = 0; !feof(f); i++) {
+		fgets(buffer[i], STRING_SIZE, f);
+		removeNewLine(buffer[i]);
+	}
+	fsetpos(f, &f_zero);
+	return --i;
+}
+/************************************************************************
+* Func: fputs_lineByLine                                                *
+* Params: FILE *f                                                       *
+*         const char buffer[][STRING_SIZE]: Destination buffer          *
+*         const int cnt: Number of total line                           *
+* Return: None                                                          *
+* Desc: Same as previous one, but fputs                                 *
+************************************************************************/
+void fputs_lineByLine(FILE *f, const char buffer[][STRING_SIZE], const int cnt) {
+	fpos_t f_zero = 0;
+	int i;
+	fsetpos(f, &f_zero);
+	for (i = 0; i < cnt; i++) {
+		fputs(buffer[i], f);
+		fputc('\n', f);
+	}
+	fsetpos(f, &f_zero);
+}
+/********************************************
+* Func: switch_strings                      *
+* Params: char *a                           *
+*         char *                            *
+*                                           *
+* Return: none                              *
+* Desc: Switches two strings places         *
+********************************************/
+void switch_strings(char *a, char *b) {
+	char temp[STRING_SIZE];
+	memcpy(temp, b, STRING_SIZE);
+	memcpy(b, a, STRING_SIZE);
+	memcpy(a, temp, STRING_SIZE);
+}
+void shift_strings(char dest[][STRING_SIZE], int index, int cnt, int direction) {
+	int a, b;
+	switch (direction) {
+		case BACK:
+			if (index == 0) {
+				a = 0;
+				b = cnt - 1;
+			} else {
+				a = index;
+				b = index - 1;
+			}
+			break;
+		case FORWARD:
+			if (index == cnt - 1) {
+				a = index;
+				b = 0;
+			} else {
+				a = index;
+				b = index + 1;
+			}
+			break;
+	}
+	switch_strings(dest[a], dest[b]);
+}
+/********************************************
+* Func: getchar_fixed                       *
+* Params: none                              *
+*                                           *
+* Return: Read character                    *
+* Desc: getchar, but returns zero on \n     *
+********************************************/
+int getchar_fixed(){
+	int c = getchar();
+	if (c == '\n') 
+		return 0;
+	return c;
 }

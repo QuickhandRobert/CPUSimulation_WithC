@@ -22,17 +22,17 @@ OverrideOutput=0
 OverrideOutputName=Computer Simulator.exe
 HostApplication=
 UseCustomMakefile=0
-CustomMakefile=
-CommandLine=drive.bin
+CustomMakefile=Makefile.win
+CommandLine="Example File.e"
 Folders=
 IncludeVersionInfo=0
 SupportXPThemes=0
-CompilerSet=0
-CompilerSettings=0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;1;0;0;0;16;0;0;0
+CompilerSet=6
+CompilerSettings=0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;1;0;0;0;0;0;0;0
 <<<<<<< HEAD
 UnitCount=7
 =======
-UnitCount=7
+UnitCount=8
 >>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
 
 [VersionInfo]
@@ -124,6 +124,16 @@ FileName=Operations.c
 =======
 FileName=generalOperations.c
 >>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
+CompileCpp=0
+Folder=
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=$(CC) -c generalOperations.c -o generalOperations.o $(CFLAGS)
+
+[Unit8]
+FileName=errorHandler.c
 CompileCpp=0
 Folder=
 Compile=1
