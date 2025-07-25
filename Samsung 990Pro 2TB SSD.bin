@@ -2011,44 +2011,124 @@ END
 
 
 
-@Write 255 to memory address 0
-REGSET MAR 0
-REGSET MDR 255
-REGSET A:10 10 @'\n'
-MEMWRITE
-@Write 256 to memory address 1
-REGSET MAR 1
-REGSET MDR 256
-MEMWRITE
-@Load them into registers X & Y
-MEMLOAD
-REGCOPY MDR X
-REGSET MAR 0
-MEMLOAD
-REGCOPY MDR Y
-ADD X Y X  @Add them together
-RUNPROC PRINT_REVERSE_INT_X  @Print the number to the console in the reverse order
-@------------------------------------------
+@----------------------------------
+@Constant Strings (Menu Items) : C0 -> C4
+CONST C0 ----------------------------------------------
+CONST C1 "Welcome to PCBox v"
+CONST C2 1.1	@OS Version
+CONST C3 "Use help to display a list of commands"
+CONST C4 "~[PCBox - Farbod]" @Temp TODO: Account system (hash passwords) 
+@----------------------------------
+@Generally Used Characters
+REGSET S:100 10 @Newline terminator (\n)
+REGSET S:101 > @waiting for commands
+@----------------------------------
+@Hashed Commands
+REGSET S:110 210714636462 @help
+REGSET S:111 6385120071 @cls
+REGSET S:112 249906522640248705 @Shutdown
+@----------------------------------
+@Help Menu Stuff : C5 -> C16
+CONST C5 "CLS         Clears the Screen"
+CONST C6 "COPY        Copying files"
+CONST C7 "DATE        Displays the current date & time"
+CONST C8 "DIR         List all files in the current directory"
+CONST C9 "ECHO        Displays a message"
+CONST C10 "HELP        Displays this menu"
+CONST C11 "MF          Creates a file with a given name"
+CONST C12 "MD          Creates a directory with a given name"
+CONST C13 "RM          Removes a given file"
+CONST C14 "RMDIR       Removes a given directory"
+CONST C15 "RENAME      Renames a file or directory"
+CONST C16 "SHUTDOWN    System shutdown"
+CONST C17 "SLEEP       Puts the system into sleep"
+CONST C18 "Invalid command!"
+@----------------------------------
+@General OS Stuff
+RUNPROC PRINT_BOOT_MENU
+:Waiting_For_CMD
+RUNPROC PRINT_COMMAND_WAIT
+RUNPROC Get_Input_To_A0_An
+RUNPROC HASH_A0toAn_ToX
+RUNPROC Execute_Command_From_X
+GOTO Waiting_For_CMD
+@----------------------------------
 @Procedures
-PROC PRINT_REVERSE_INT_X:
-REGSET Y 48  @Character '0'
-REGCOPY X Z  @Copy x to z (altering prevention)
-REGSET U 10  @Divide by 10 each time
-REGSET A:0 0  @Used to check if number == 0
-:Repeat
-RUNPROC PRINT_REVERSE_INT_X_Helper
-OUTPUT V
-CRUN A:1 ENDPROC @End the procedure if we've encountered the end of the number
-GOTO Repeat  @If not, repeat
+PROC Get_Input_To_A0_An:
+@Used Registers:
+REGSET X 0 @Input
+REGSET U 0 @Used for 0 value
+REGSET V 0 @Comparison result
+REGSET Y -1 @Itterator
+:Get_Input_To_A0_An_Iterate
+INC Y
+INPUT X
+EQ X U V
+CRUN V GOTO Get_Input_To_A0_An_END
+REGCOPY X A:Y
+GOTO Get_Input_To_A0_An_Iterate
+:Get_Input_To_A0_An_END
+REGCOPY U A:Y
 ENDPROC
-PROC PRINT_REVERSE_INT_X_Helper:
-LO Z U V  @Find the first digit
-ADD V Y V  @Add it to 48 (creating the ASCII code)
-DIV Z U Z  @Divide the number by 10, remove the last digit
-EQ Z A:0 A:1  @Check if number == 0
+PROC PRINT_HELP_MENU:
+@Used Registers:
+REGSET U 4 @Iterator
+REGSET V 0
+REGSET Z 17 @Maximum
+:PRINT_HELP_MENU_REPEAT
+INC U
+OUTPUT C:U
+OUTPUT S:100 @Newline
+EQ U Z V
+NOT V
+CRUN V GOTO PRINT_HELP_MENU_REPEAT
 ENDPROC
-@------------------------------------------
-GOTO Start @Repeat Everything Forever :P
+PROC PRINT_BOOT_MENU:
+OUTPUT C0
+OUTPUT S:100
+OUTPUT C1
+OUTPUT C2
+OUTPUT S:100
+OUTPUT C3
+OUTPUT S:100
+OUTPUT C0
+OUTPUT S:100
+ENDPROC
+PROC PRINT_COMMAND_WAIT:
+OUTPUT C4
+OUTPUT S:101
+ENDPROC
+PROC HASH_A0toAn_ToX:
+@Used Registers
+REGSET U 0
+REGSET V 0
+REGSET X 5381 @Hash Key
+REGSET Y -1 @Iterator
+REGSET Z 5 @Shift Value
+:HASH_Iterate
+INC Y
+SHIFTBACK X Z V
+ADD X V X
+ADD X A:Y X
+REGSET U 0
+EQ A:Y U U
+NOT U
+CRUN U GOTO HASH_Iterate
+ENDPROC
+PROC Execute_Command_From_X:
+REGSET U 0 @Used for logic stuff
+EQ X S:110 U
+CRUN U RUNPROC PRINT_HELP_MENU
+CRUN U ENDPROC
+EQ X S:111 U
+CRUN U CLS
+CRUN U ENDPROC
+EQ X S:112 U
+CRUN U SHUTDOWN
+CRUN U ENDPROC
+OUTPUT C18
+OUTPUT S:100
+ENDPROC
 END
 
 

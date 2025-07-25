@@ -57,7 +57,7 @@ void p_error(bool terminate) {
 			fprintf(stderr, "Couldn\'t read drive metadata, Sector size invalid. Using default value: %d\n", DEFAULT_SECTOR_SIZE);
 			break;
 		case MEMORY_LIMIT_EXCEEDED:
-			fprintf(stderr, "Memory Limit Exceeded. Memory Address %s does nost exist.\n", error_buff);
+			fprintf(stderr, "Memory Limit Exceeded. Memory Address %s does not exist.\n", error_buff);
 			break;
 		case CPU_LIMIT_EXCEEDED:
 			fprintf(stderr, "CPU limit exceeded.\n");

@@ -2,7 +2,7 @@
 #include <time.h>
 #include <stdbool.h>
 #define FILENAME_SIZE 32
-#define MEMORY_SIZE 64
+#define MEMORY_SIZE 512
 #define INSTRUCTIONS_NUMBER 256
 #define STRING_SIZE 256
 #define EMPTY_MEMORY_VALUE 0x7FFFFFFF
@@ -17,11 +17,11 @@
 #define DOTS_DURATION_MAX 20000
 #define DEFAULT_DRIVE_SIZE 1024 * 1024
 #define DEFAULT_SECTOR_SIZE 512
-#define MINIMUM_CLOCK_DURATION 10
+#define MINIMUM_CLOCK_DURATION 0
 #define MAX_PROCS 8
 #define MAX_GOTO_POINTS 16
 #define GOTO_POINT_INDICATOR ':'
-#define CLOCK_PULSE 1000
+#define CLOCK_PULSE 5
 #define CLOCK_PULSE_TOGGLE_RATIO 10 //What percentage of the clock pulse duration should the monitor's clockpulse indicator turn on?
 #define COMMENT_SIGN '@'
 #define ERR_VAR_INDICATOR '#'
@@ -71,7 +71,7 @@ typedef struct userRAM {
 	bool isFree;
 } userRAM;
 typedef struct registerP {
-	int *p;
+	long long *p;
 	int type;
 	int index;
 	unsigned long hashed;
@@ -87,20 +87,20 @@ typedef struct procedure {
 	};
 typedef struct CPU_registers {
 	char R_IR[SYNTAX_LIMIT][STRING_SIZE];
-	int R_PC;
-	int R_SP; //Stack Pointer
-	int R_AC; //Accumulator
-	int R_MAR; //Memory Address
-	int R_MDR; //Value
-	int R_U; //General Purpose
-	int R_V; //General Purpose
-	int R_X; //General Purpose
-	int R_Y; //General Purpose
-	int R_Z; //General Purpose
-	unsigned long long R_C; //Clock accumalator
+	long long int R_PC;
+	long long int R_SP; //Stack Pointer
+	long long int R_AC; //Accumulator
+	long long int R_MAR; //Memory Address
+	long long int R_MDR; //Value
+	long long int R_U; //General Purpose
+	long long int R_V; //General Purpose
+	long long int R_X; //General Purpose (Unsigned)
+	long long int R_Y; //General Purpose
+	long long int R_Z; //General Purpose
+	long long int R_C; //Clock accumalator
 	struct R_IR_INSTRUCTION R_IR_INST;
-	int R_S[STRING_SIZE]; //String Handling
-	int R_A[STRING_SIZE]; //String Handling
+	long long R_S[STRING_SIZE]; //String Handling
+	long long R_A[STRING_SIZE]; //String Handling
 	char CONSTSTR[CONSTANT_STRINGS][STRING_SIZE];
 	int step;
 	bool cp_toggle;
@@ -179,13 +179,15 @@ enum operations_hashed {
     OP_REGSET      = 3425631311,
     OP_REGCOPY     = 1376119422,
     OP_EQ          = 5862267,
+	OP_SHIFTFORWARD= 183630808,
+	OP_SHIFTBACK   = 3316831508,
     OP_INPUT       = 223617557,
     OP_OUTPUT      = 3327664310,
     OP_CLS         = 193452551,
     OP_GOTO        = 2089114014,
     OP_RUN         = 193469178,
     OP_CRUN        = 2088973565,
-    OP_SHUTDOWN    = 2163990155,
+    OP_SHUTDOWN    = 2278134369,
     OP_HIBERNATE   = 2471584439,
     OP_CONST       = 216535724,
     OP_ERR         = 193454926,
@@ -194,7 +196,8 @@ enum operations_hashed {
     OP_RUNPROC     = 2011057550,
     OP_ENDPROC     = 2116036176,
     OP_END         = 2089040454,
-    OP_ENDN        = 193454780
+    OP_ENDN        = 193454780,
+    OP_DEBUG_BPOINT= 217349260
 };
 enum registers_hashed {
 	SP  = 5862728,
@@ -252,21 +255,21 @@ int decodeInstruction(char *, int, FILE *);
 void shift_IR(bool);
 void decode_execute(unsigned long, FILE *);
 void runCPU(FILE *);
-void F_OR(int *r1, int *r2, int *r3);
-void F_AND(int *r1, int *r2, int *r3);
-void F_NOT(int *r1);
-void F_XOR(int *r1, int *r2, int *r3);
-void F_NAND(int *r1, int *r2, int *r3);
-void F_NOR(int *r1, int *r2, int *r3);
-void F_ADD(int *r1, int *r2, int *r3);
-void F_SUB(int *r1, int *r2, int *r3);
-void F_DIV(int *r1, int *r2, int *r3);
-void F_MUL(int *r1, int *r2, int *r3);
-void F_LO(int *r1, int *r2, int *r3);
-void F_INC(int *r1);
-void F_DEC(int *r1);
-void F_NEG(int *r1);
-void F_EQ(int *r1, int *r2, int *r3);
+void F_OR(long long *r1, long long *r2, long long *r3);
+void F_AND(long long *r1, long long *r2, long long *r3);
+void F_NOT(long long *r1);
+void F_XOR(long long *r1, long long *r2, long long *r3);
+void F_NAND(long long *r1, long long *r2, long long *r3);
+void F_NOR(long long *r1, long long *r2, long long *r3);
+void F_ADD(long long *r1, long long *r2, long long *r3);
+void F_SUB(long long *r1, long long *r2, long long *r3);
+void F_DIV(long long *r1, long long *r2, long long *r3);
+void F_MUL(long long *r1, long long *r2, long long *r3);
+void F_LO(long long *r1, long long *r2, long long *r3);
+void F_INC(long long *r1);
+void F_DEC(long long *r1);
+void F_NEG(long long *r1);
+void F_EQ(long long *r1, long long *r2, long long *r3);
 void shared_memory_handler(int);
 void clock_pulse(void);
 void const_def(void);

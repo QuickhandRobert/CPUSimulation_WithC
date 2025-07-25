@@ -351,9 +351,13 @@ void goto_point_init() {
 * Return: PC value pointing to the start of the Proc   *
 *******************************************************/
 int findProc(const char *name) {
+	int len = strlen(name);
+	char buffer[STRING_SIZE];
+	strncpy(buffer, name, STRING_SIZE);
+	buffer[len - 1] = buffer[len - 1] == ':' ? '\0' : buffer[len - 1]; //Remove ':'
 	for (int i = 0; i < MAX_PROCS; i++)
-		if (strcmp(proc[i].name, name) == 0)
-			return proc[i].start;
+		if (strcmp(proc[i].name, buffer) == 0)
+			return i;
 	return NOT_FOUND;
 }
 /*******************************************************
@@ -443,6 +447,7 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 	registerP registers[SYNTAX_LIMIT];
 	unsigned long inst;
 	char buffer2[STRING_SIZE];
+	char buffer0[1][STRING_SIZE];
 	operationsHashed = instruction;
 	int copied_value; //Used for the COPY inst
 	switch (operationsHashed) {
@@ -717,10 +722,10 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->step = EXECUTE;
 			hashRegisters(1, CPU_Registers->R_IR, registers);
 			makeRegisterPointers(1, registers);
-			if (isdigit(*CPU_Registers->R_IR[1])) //Is the value an integer?
-				*registers[0].p = atoi(CPU_Registers->R_IR[1]);
+			if (isdigit(*CPU_Registers->R_IR[1]) || *CPU_Registers->R_IR[1] == '-') //Is the value an integer?
+				*registers[0].p = atoll(CPU_Registers->R_IR[1]);
 			else //Or an ASCII character?
-				*registers[0].p = (int)CPU_Registers->R_IR[1];
+				*registers[0].p = (int)*CPU_Registers->R_IR[1];
 			break;
 		case OP_REGCOPY:
 			//Set monitor's parameters
@@ -741,6 +746,26 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			hashRegisters(3, CPU_Registers->R_IR, registers);
 			makeRegisterPointers(3, registers);
 			F_EQ(registers[0].p, registers[1].p, registers[2].p);
+			break;
+		case OP_SHIFTFORWARD:
+			//Set monitor's parameters
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "SHIFTFORWARD");
+			CPU_Registers->R_IR_INST.inst_params = 3;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(3, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(3, registers);
+			*registers[2].p = *registers[0].p >> *registers[1].p;
+			break;
+		case OP_SHIFTBACK:
+			//Set monitor's parameters
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "SHIFTBACK");
+			CPU_Registers->R_IR_INST.inst_params = 3;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(3, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(3, registers);
+			*registers[2].p = *registers[0].p << *registers[1].p;
 			break;
 		//----------------------------------
 		//IO
@@ -769,9 +794,17 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 				makeRegisterPointers(1, registers);
 			}
 			switch(registers[0].type) {
-				case M_CONST: //TODO: decide we remove this or not
+				case M_CONST: //TODO: decide wether we remove this or not
 					strcut(buffer2, *CPU_Registers->R_IR, 1, -1);
-					printf("%s", CPU_Registers->CONSTSTR[atoi(buffer2)]);
+					if (isdigit((int)*buffer2))
+						printf("%s", CPU_Registers->CONSTSTR[atoi(buffer2)]);
+					else {
+						strcut(buffer2, buffer2, 1, -1);
+						strcpy(buffer0[0], buffer2);
+						hashRegisters(1, buffer0, registers);
+						makeRegisterPointers(1, registers);
+						printf("%s", CPU_Registers->CONSTSTR[*registers[0].p]);
+					}
 					break;
 				default:
 					putchar(*registers[0].p);
@@ -815,8 +848,8 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			makeRegisterPointers(1, registers);
 			if (*registers[0].p) {
 				inst = hashStr(CPU_Registers->R_IR[1]);
-				shift_IR(-1);
-				shift_IR(-1);
+				shift_IR(BACK);
+				shift_IR(BACK);
 				decode_execute(inst, drive);
 			}
 			break;
@@ -876,7 +909,7 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			proc_stack_top++;
 			prochelper[proc_stack_top] = CPU_Registers->R_PC;
 			strcpy(buffer2, CPU_Registers->R_IR[0]);
-			CPU_Registers->R_PC = findProc(buffer2);
+			CPU_Registers->R_PC = proc[findProc(buffer2)].start;
 			(CPU_Registers->R_PC)++;
 			break;
 		case OP_ENDPROC:
@@ -888,15 +921,23 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->R_PC = prochelper[proc_stack_top];
 			proc_stack_top--;
 			break;
+		case OP_DEBUG_BPOINT:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "DEBUG");
+			CPU_Registers->R_IR_INST.inst_params = 0;
+			printf("\nDebugging breakpoint reached!\n");
+			break;
 	}
 	clock_pulse();
 }
 void runCPU(FILE *drive) {
 	start = clock(); //Set start time
+	unsigned long inst;
 	CPU_Registers->R_PC = memoryAddress[0]; //Set the PC value to the start of the currently running program...
+	
 	//CPU Cycle
 	while(CPU_Registers->R_PC < memoryAddress[1]) { //FETCH till the program ends...
-		decode_execute(fetch(), drive);
+		inst = fetch();
+		decode_execute(inst, drive);
 	}
 }
 
