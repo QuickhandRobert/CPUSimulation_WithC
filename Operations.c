@@ -56,7 +56,7 @@ void F_INC(long long *r1)
 }
 void F_DEC(long long *r1)
 {
-    *r1--;
+    (*r1)--;
 }
 void F_NEG(long long *r1)
 {
@@ -65,4 +65,28 @@ void F_NEG(long long *r1)
 void F_EQ(long long *r1, long long *r2, long long *r3)
 {
     *r3 = *r1 == *r2;
+}
+void F_HIGHER (long long *r1, long long *r2, long long *r3)
+{
+	*r3 = *r1 > *r2;
+}
+void F_LOWER (long long *r1, long long *r2, long long *r3)
+{
+	*r3 = *r1 < *r2;
+}
+void F_SHIFTFORWARD (long long *r1, long long *r2, long long *r3)
+{
+	*r3 = *r1 >> *r2;
+}
+void F_SHIFTBACK (long long *r1, long long *r2, long long *r3)
+{
+	*r3 = *r1 << *r2;
+}
+void F_BITAND (long long *r1, long long *r2, long long *r3)
+{
+	*r3 = *r1 & *r2;
+}
+void F_BITOR (long long *r1, long long *r2, long long *r3)
+{
+	*r3 = *r1 | *r2;
 }

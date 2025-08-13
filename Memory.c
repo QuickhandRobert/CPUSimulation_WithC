@@ -5,7 +5,6 @@
 //Global Variables
 systemRAM systemMemory[MEMORY_SIZE];
 userRAM userMemory [MEMORY_SIZE];
-char stringMemory[MEMORY_SIZE][STRING_SIZE];
 //Error Handler
 extern enum errors_def error_code;
 extern char error_buff[STRING_SIZE];
@@ -21,8 +20,7 @@ bool memAddress_check(const int memoryAddress) {
 		sprintf(error_buff, "%d", memoryAddress);
 		p_error(false);
 		return false;
-	}
-	else
+	} else
 		return true;
 }
 /******************************************************
@@ -36,7 +34,7 @@ void memoryInit(int memoryType) {
 	switch(memoryType) {
 		case SYSTEM_RAM:
 			for (int i = 0; i < MEMORY_SIZE; i++)
-				systemMemory[i].isFree = 1;
+				systemMemory[i].isFree = true;
 			break;
 		case USER_RAM:
 			for (int i = 0; i < MEMORY_SIZE; i++)
@@ -55,10 +53,10 @@ void flushMemoryAddress(const int memoryBlockAddress, const int memoryType) {
 		return;
 	switch(memoryType) {
 		case SYSTEM_RAM:
-			systemMemory[memoryBlockAddress].isFree = 1;
+			systemMemory[memoryBlockAddress].isFree = true;
 			break;
 		case USER_RAM:
-			userMemory[memoryBlockAddress].isFree = 1;
+			userMemory[memoryBlockAddress].isFree = true;
 	}
 }
 /*********************************************************************************
@@ -114,6 +112,18 @@ unsigned long readFromMemory(const int dataType, const int memoryType, const int
 			break;
 		case USER_RAM:
 			return userMemory[memoryBlockAddress0].data;
+	}
+}
+bool mem_isFree(const int memoryType, const int index) {
+	if (!memAddress_check(index)) //Sanity check
+		return false;
+	switch (memoryType) {
+		case SYSTEM_RAM:
+			return systemMemory[index].isFree;
+			break;
+		case USER_RAM:
+			return userMemory[index].isFree;
+			break;
 	}
 }
 

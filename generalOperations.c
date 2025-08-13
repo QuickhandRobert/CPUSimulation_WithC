@@ -5,7 +5,6 @@
 #include <stdlib.h>
 //Global Variables
 static char *olds; //Used by strtok()
-static char *IR_olds;
 /*****************************************************************************************
 * Func: strtok_fixed                                                                     *
 * Params: char *s: Input String (NULL To Use Previous)                                   *
@@ -94,7 +93,9 @@ char *strcut(char *dest, char *source, const int start, const int end) {
 * Return: True or False                     *
 ********************************************/
 bool isStringEmpty(const char *str) {
-	if (str[0] == '\0') return true;
+	if (str)
+		if (*str == '\0')
+			return true;
 	return false;
 }
 /********************************************
@@ -103,9 +104,10 @@ bool isStringEmpty(const char *str) {
 *                                           *
 * Return: True or False                     *
 ********************************************/
-int isLineEmpty(char *str) {
-	if (str[0] == '\n') return 1;
-	return 0;
+bool isLineEmpty(const char *str) {
+	if (*str == '\n')
+		return true;
+	return false;
 }
 /********************************************
 * Func: hashStr                             *
@@ -118,6 +120,8 @@ unsigned long hashStr(char *str) {
 	char *c;
 	for (c = str; *c != '\0'; c++)
 		hash = ((hash << 5) + hash) + *c;
+//	printf("----------------------------------\n");
+//	printf("%u\n", hash);
 	return hash;
 }
 /****************************************************************
@@ -134,7 +138,7 @@ void hashRegisters(const int n, char buffer[SYNTAX_LIMIT][STRING_SIZE], register
 	char buff_i[STRING_SIZE];
 	for (int i = 0; i < n; i++) {
 		strcpy(buff_i, buffer[i]); //Backup original string, strtok tends to fuck the original one up...
-		if (res = strstr(buff_i, INDEX_SEPERATOR)){
+		if (res = strstr(buff_i, INDEX_SEPERATOR)) {
 			*res = '\0';
 			registers[i].hashed = hashStr(buff_i);
 			res++;
@@ -142,16 +146,16 @@ void hashRegisters(const int n, char buffer[SYNTAX_LIMIT][STRING_SIZE], register
 				registers[i].index = atoi(res);
 			else {
 				tmp.hashed = hashStr(res);
+				tmp.index = 0;
 				makeRegisterPointers(1, &tmp);
-				registers[i].index = *(int *)tmp.p;	
+				registers[i].index = *(int *)tmp.p;
 			}
-		}
-		else {
+		} else {
 			registers[i].hashed = hashStr(buff_i);
 			registers[i].index = 0;
 		}
-		
-		
+
+
 	}
 }
 /********************************************
@@ -167,7 +171,7 @@ void removeNewLine(char *str) {
 /**********************************************************************
 * Func: humanSize                                                     *
 * Params: long long int bytes: Size in bytes                          *
-*                                                                     *                
+*                                                                     *
 * Return: char * to Humanized size string                             *
 * Desc: Humanizes a given amount of bytes for easier understanding,   *
 *       Using suffixes such as KB, MB, GB, etc                        *
@@ -270,9 +274,26 @@ void shift_strings(char dest[][STRING_SIZE], int index, int cnt, int direction) 
 * Return: Read character                    *
 * Desc: getchar, but returns zero on \n     *
 ********************************************/
-int getchar_fixed(){
+int getchar_fixed() {
 	int c = getchar();
-	if (c == '\n') 
+	if (c == '\n')
 		return 0;
 	return c;
+}
+void intPtoString(char *char_p, long long int *int_p, const bool direction, const int max_char) {
+	long long int *i;
+	char *c;
+	switch (direction) {
+		case INTP_TO_CHARP:
+			for (i = int_p; *i != 0 && (i - int_p) < max_char; i++)
+				char_p[i - int_p] = *i;
+			char_p[i - int_p] = '\0';
+			break;
+		case CHARP_TO_INTP:
+			for (c = char_p; *c != '\0' && c - char_p < max_char; c++)
+				int_p[c - char_p] = *c;
+			int_p[c - char_p] = 0;
+			break;
+	}
+
 }

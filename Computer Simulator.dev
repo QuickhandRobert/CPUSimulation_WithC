@@ -9,9 +9,9 @@ Libs=
 PrivateResource=
 ResourceIncludes=
 MakeIncludes=
-Compiler=
+Compiler=-lportaudio_@@_
 CppCompiler=
-Linker=
+Linker=-lportaudio_@@_
 IsCpp=0
 Icon=
 ExeOutput=
@@ -21,7 +21,7 @@ LogOutputEnabled=0
 OverrideOutput=0
 OverrideOutputName=Computer Simulator.exe
 HostApplication=
-UseCustomMakefile=0
+UseCustomMakefile=1
 CustomMakefile=Makefile.win
 CommandLine="Example File.e"
 Folders=
@@ -32,7 +32,7 @@ CompilerSettings=0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;1;0;0;0;0;0;0;0
 <<<<<<< HEAD
 UnitCount=7
 =======
-UnitCount=8
+UnitCount=9
 >>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
 
 [VersionInfo]
@@ -134,6 +134,16 @@ BuildCmd=$(CC) -c generalOperations.c -o generalOperations.o $(CFLAGS)
 
 [Unit8]
 FileName=errorHandler.c
+CompileCpp=0
+Folder=
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit9]
+FileName=audio.c
 CompileCpp=0
 Folder=
 Compile=1

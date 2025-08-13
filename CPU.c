@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
+#include <process.h>
+#include <conio.h>
 /*
 IR:
 
@@ -33,17 +35,23 @@ MDR are used to handle the data transfer between the main memory and the process
 */
 //CPU Registers
 HANDLE hMapFile;
+HANDLE hStdin;
+DWORD echo_off, echo_on;
 CPU_registers *CPU_Registers;
+program *programs;
 //Global Variables
-int memoryAddress[2] = {0}; //Handling multiple apps at once
+int programsTop = 0;
+long pc_max = 0;
 char errors[ERRORS][STRING_SIZE]; //Error string defined by ERR
-procedure proc[MAX_PROCS]; //Procedures (names, startPoints & endPoints)
-gotoPoint goto_point[MAX_GOTO_POINTS]; //Gotopoints (PC values)
-int prochelper[MAX_PROCS], proc_stack_top = -1; //Procedure handling helper variables
+procedure proc[MAX_PROGRAMS][MAX_PROCS]; //Procedures (names, startPoints & endPoints)
+gotoPoint goto_point[MAX_PROGRAMS][MAX_GOTO_POINTS]; //Gotopoints (PC values)
+int prochelper[MAX_PROGRAMS][MAX_PROCS], proc_stack_top[MAX_PROGRAMS] = {0}; //Procedure handling helper variables
 clock_t start; //Used for clock pulse evaluations..
 //Error handler
 extern enum errors_def error_code;
 extern char error_buff[STRING_SIZE];
+//Debugging
+FILE *debugOutput;
 /**********************************************************
 * Func: shared_memory_handler                             *
 * Params: const int operationType (REG_INIT, REG_UNINIT)  *
@@ -51,7 +59,7 @@ extern char error_buff[STRING_SIZE];
 * Return: none                                            *
 * Desc: Initializes or shutdowns the shared memory.       *
 **********************************************************/
-void shared_memory_handler(const int operationType) {
+void shared_memory_handler(const int operationType, const bool restart_flag) {
 	switch (operationType) {
 		case REG_INIT:
 			hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(CPU_registers), "Global\\SharedMemory"); //Create a file mapping using windows library tools
@@ -60,13 +68,47 @@ void shared_memory_handler(const int operationType) {
 			CPU_Registers->cp_differ_toggle = false; //Toggled whenever clockpulse value is changed on the monitor's side
 			CPU_Registers->R_C = 1; //Clock accumalator
 			CPU_Registers->CPU_Clock = CLOCK_PULSE; //Default value
+			CPU_Registers->power_state = restart_flag ? true : false;
+			//Window mode initializations
+			hStdin = GetStdHandle(STD_INPUT_HANDLE);
+			GetConsoleMode(hStdin, &echo_on);
+			echo_on |= ENABLE_VIRTUAL_TERMINAL_PROCESSING; //Enabled for moving cursor freely n stuff
+			SetConsoleMode(hStdin, echo_on);
+			echo_off = echo_on;
+			echo_off &= ~(ENABLE_ECHO_INPUT); //Disable echo input\
+			//Programs struct
+			programs = (program *)malloc(sizeof(program) * MAX_PROGRAMS);
+			programs->start = 0;
 			break;
 		case REG_UNINIT:
 			UnmapViewOfFile(CPU_Registers);
 			CPU_Registers = NULL;
 			CloseHandle(hMapFile);
 			hMapFile = NULL;
+			free(programs);
 	}
+}
+void wait_for_power(bool flag) {
+	while (!flag && !CPU_Registers->power_state)
+		;
+}
+unsigned __stdcall watch_for_poweroff(void *a) {
+	while (true) {
+		if (!CPU_Registers->power_state) {
+			system_shutdown();
+			return 0;
+		}
+		if (CPU_Registers->restart_trigger && CPU_Registers->power_state) { //System is on and a restart is requested, then...
+			CPU_Registers->restart_trigger = false;
+			system_restart();
+			return 0;
+		}
+		Sleep(WATCH_FOR_POWEROFF_WAIT_INTERVAL);
+	}
+	return 0;
+}
+bool isSystemOn() {
+	return CPU_Registers->power_state;
 }
 /********************************************
 * Func: clock_pulse                         *
@@ -137,7 +179,7 @@ void input_delay_handler() {
 unsigned long fetch() {
 	CPU_Registers->step = FETCH; //Set the current status of monitor to FETCH
 	for (int i = 0; i < SYNTAX_LIMIT; i++) {
-		readFromMemory(1, SYSTEM_RAM, CPU_Registers->R_PC, i, CPU_Registers->R_IR[i]); //Load each parameter of the current instuction into IR
+		readFromMemory(M_STR, SYSTEM_RAM, CPU_Registers->R_PC, i, CPU_Registers->R_IR[i]); //Load each parameter of the current instuction into IR
 	}
 	(CPU_Registers->R_PC)++; //Add the program counter of each FETCH
 	clock_pulse(); //Pulse the clock :P
@@ -157,6 +199,9 @@ void makeRegisterPointers(const int n, registerP *registers) {
 		registers[i].type = M_INT;
 		registersHashed = registers[i].hashed;
 		switch(registersHashed) {
+			case PC:
+				registers[i].p = &CPU_Registers->R_PC;
+				break;
 			case SP:
 				registers[i].p = &CPU_Registers->R_SP;
 				break;
@@ -248,7 +293,7 @@ void const_def() {
 * Desc: Prints an error definition with # as variables     *
 ***********************************************************/
 void print_error(registerP *registers) {
-	char buffer[STRING_SIZE];
+	char buffer[STRING_SIZE], buffer0[STRING_SIZE];
 	char *res;
 	int index, len, i, j;
 	strcut(buffer, *CPU_Registers->R_IR, 1, -1);
@@ -261,8 +306,12 @@ void print_error(registerP *registers) {
 	index = atoi(buffer);
 	len=strlen(errors[index]);
 	for (i = 0, j = 1; i < len; i++) {
-		if (errors[index][i] == ERR_VAR_INDICATOR) {
-			printf("%d", registers[j].p);
+		if (errors[index][i] == ERR_INT_INDICATOR) {
+			printf("%lld", *registers[j].p);
+			j++;
+		} else if (errors[index][i] == ERR_STR_INDICATOR) {
+			intPtoString(buffer0, registers[j].p, INTP_TO_CHARP,STRING_SIZE);
+			printf("%s", buffer0);
 			j++;
 		} else {
 			putchar(errors[index][i]);
@@ -281,21 +330,26 @@ void print_error(registerP *registers) {
 void loadToMemory(FILE *drive, char *filename) {
 	char buffer[LINE_BUFFER_SIZE];
 	char *res;
-	int i, j;
+	int i = 0, j = 0;
 	unsigned long hashed = 0;
 	if (filename && !isStringEmpty(filename))  //Open the given file if filename isn't empty or NULL
 		openFile(filename, drive);
-	for (i = memoryAddress[1]; j != PROGRAM_ENDED; i++) { //Read the file line by line untill we read "END"
+	for (i = (programs + programsTop)->start; j != PROGRAM_ENDED; i++) { //Read the file line by line untill we read "END"
 		readLine(buffer, NULL, 0, drive); //Read a line into buffer
 		j = decodeInstruction(buffer, i, drive); //Decodes & writes in into SYSTEM_RAM (+checks for comments)
 		//if a line is comment, decodeinstruction returns -1, and i decrements, else i increments..
 		i = j != PROGRAM_ENDED ? i += j : i;
 	}
-	memoryAddress[0] = memoryAddress[1]; //Multiple programs handling, TODO: add support for more
-	memoryAddress[1] = i - 1;
+
+	(programs + programsTop + 1)->start = i;
 	proc_init(); // initialize procedures (end, start, names)
 	goto_point_init(); //Initialize goto points (start, names)
-
+	programsTop++;
+	pc_max += i;
+}
+void unloadFromMemory() {
+	pc_max = (programs + programsTop) -> start;
+	programsTop--;
 }
 /*******************************************************
 * Func: proc_init                                      *
@@ -309,17 +363,18 @@ void proc_init() {
 	unsigned long a;
 	char buffer[LINE_BUFFER_SIZE];
 	enum operations_hashed operationsHashed;
-	for (int i = 0, j = 0; i < memoryAddress[1]; i++) {
+	int i, j;
+	for (i = (programs + programsTop)->start, j = 0; i < (programs + programsTop + 1)->start; i++) {
 		if ((operationsHashed = readFromMemory(M_INT, SYSTEM_RAM, i, -1, NULL)) == OP_PROC) { //Search for procedures
 			readFromMemory(M_STR, SYSTEM_RAM, i, 0, buffer); //Read procedure's name
 			buffer[strlen(buffer) - 1] = '\0'; //Remove ':'
 			//Set procedure's parameters
-			proc[j].start = i;
-			strncpy(proc[j].name, buffer, LINE_BUFFER_SIZE);
+			proc[programsTop][j].start = i;
+			strncpy(proc[programsTop][j].name, buffer, LINE_BUFFER_SIZE);
 			do {
 				i++;
 			} while ((operationsHashed = readFromMemory(M_INT, SYSTEM_RAM, i, -1, NULL)) != OP_ENDPROC); //Skip over anything that isn't "ENDPROC"
-			proc[j].end = i;
+			proc[programsTop][j].end = i;
 			j++;
 		}
 	}
@@ -333,13 +388,14 @@ void proc_init() {
 *       and initializes them for future use            *
 *******************************************************/
 void goto_point_init() {
+	int i, j;
 	char buffer[LINE_BUFFER_SIZE];
-	for (int i = 0, j = 0; i < memoryAddress[1]; i++) {
+	for (i = (programs + programsTop)->start, j = 0; i < (programs + programsTop + 1)->start; i++) {
 		if (readFromMemory(M_INT, SYSTEM_RAM, i, -1, NULL) == GOTO_POINT) { //Search for goto point identifier
 			readFromMemory(M_STR, SYSTEM_RAM, i, 0, buffer);
 			//Set the parameters..
-			goto_point[j].pos = i;
-			strncpy(goto_point[j].name, buffer, STRING_SIZE);
+			goto_point[programsTop][j].pos = i;
+			strncpy(goto_point[programsTop][j].name, buffer, STRING_SIZE);
 			j++;
 		}
 	}
@@ -356,7 +412,7 @@ int findProc(const char *name) {
 	strncpy(buffer, name, STRING_SIZE);
 	buffer[len - 1] = buffer[len - 1] == ':' ? '\0' : buffer[len - 1]; //Remove ':'
 	for (int i = 0; i < MAX_PROCS; i++)
-		if (strcmp(proc[i].name, buffer) == 0)
+		if (strcmp(proc[programsTop - 1][i].name, buffer) == 0)
 			return i;
 	return NOT_FOUND;
 }
@@ -368,8 +424,8 @@ int findProc(const char *name) {
 *******************************************************/
 int findGotoPoint(const char *name) {
 	for (int i = 0; i < MAX_GOTO_POINTS; i++)
-		if (strcmp(goto_point[i].name, name) == 0)
-			return goto_point[i].pos;
+		if (strcmp(goto_point[programsTop - 1][i].name, name) == 0)
+			return goto_point[programsTop - 1][i].pos;
 	return NOT_FOUND;
 }
 /**************************************************************************************
@@ -393,6 +449,9 @@ int decodeInstruction(char *buffer, const int index, FILE *drive) {
 		writeToMemory(M_STR, SYSTEM_RAM, index, -1, GOTO_POINT, buffer);
 		writeToMemory(M_STR, SYSTEM_RAM, index, 0, S_NULL, buffer);
 		return LINE_OK;
+	}
+	if (isStringEmpty(buffer)) {
+		return LINE_COMMENT;
 	}
 	res = strtok_fixed(buffer, " ", '\"');
 	hashed = hashStr(res); //Hash the current instruction
@@ -446,10 +505,12 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 	enum operations_hashed operationsHashed;
 	registerP registers[SYNTAX_LIMIT];
 	unsigned long inst;
+	char *rename_buff0, *rename_buff1;
 	char buffer2[STRING_SIZE];
 	char buffer0[1][STRING_SIZE];
 	operationsHashed = instruction;
 	int copied_value; //Used for the COPY inst
+	int ch; //Used for GETKEY instf
 	switch (operationsHashed) {
 		//----------------------------------
 		//Logic operations
@@ -512,6 +573,24 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			makeRegisterPointers(3, registers);
 			F_NOR(registers[0].p, registers[1].p, registers[2].p);
 			break;
+		case OP_BITAND:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "BITAND");
+			CPU_Registers->R_IR_INST.inst_params = 3;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(3, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_BITAND(registers[0].p, registers[1].p, registers[2].p);
+			break;
+		case OP_BITOR:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "BITOR");
+			CPU_Registers->R_IR_INST.inst_params = 3;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(3, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_BITOR(registers[0].p, registers[1].p, registers[2].p);
+			break;
 		//----------------------------------
 		//File operations
 		case OP_FOPEN:
@@ -520,7 +599,13 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->R_IR_INST.inst_params = 1;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
-			openFile(CPU_Registers->R_IR[0], drive);
+			hashRegisters(1, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(1, registers);
+			if (registers[0].p) {
+				intPtoString(buffer2, registers[0].p, INTP_TO_CHARP, STRING_SIZE);
+				openFile(buffer2, drive);
+			} else
+				openFile(CPU_Registers->R_IR[0], drive);
 			break;
 		case OP_MKF:
 			//Set monitor's parameters
@@ -528,17 +613,44 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->R_IR_INST.inst_params = 1;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
-			createFile(CPU_Registers->R_IR[0], drive);
+			hashRegisters(1, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(1, registers);
+			if (registers[0].p) {
+				intPtoString(buffer2, registers[0].p, INTP_TO_CHARP,STRING_SIZE);
+				createFile(buffer2, drive);
+			} else
+				createFile(CPU_Registers->R_IR[0], drive);
 			break;
-		case OP_RL:
-			//Set monitor's parameters
-			strcpy(CPU_Registers->R_IR_INST.inst_name, "RL"); //RL: read line
+		case OP_RM:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "MKF");
 			CPU_Registers->R_IR_INST.inst_params = 1;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
 			hashRegisters(1, CPU_Registers->R_IR, registers);
 			makeRegisterPointers(1, registers);
-			readLine((char *)registers[0].p, CPU_Registers->R_IR[2], 1, drive);
+			if (registers[0].p) {
+				intPtoString(buffer2, registers[0].p, INTP_TO_CHARP, STRING_SIZE);
+				deleteFile(buffer2, drive);
+			} else
+				deleteFile(CPU_Registers->R_IR[0], drive);
+			break;
+		case OP_RENAME:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "RENAME");
+			CPU_Registers->R_IR_INST.inst_params = 2;
+			clock_pulse();
+			hashRegisters(2, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(2, registers);
+			if (registers[0].p) {
+				intPtoString(buffer0[0], registers[0].p, INTP_TO_CHARP, STRING_SIZE);
+				rename_buff0 = buffer0[0];
+			} else
+				rename_buff0 = CPU_Registers->R_IR[0];
+			if (registers[1].p) {
+				intPtoString(buffer2, registers[1].p, INTP_TO_CHARP, STRING_SIZE);
+				rename_buff1 = buffer2;
+			} else
+				rename_buff1 = CPU_Registers->R_IR[1];
+			renameFile(rename_buff0, rename_buff1, drive);
 			break;
 		case OP_RNC:
 			//Set monitor's parameters
@@ -548,17 +660,30 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->step = EXECUTE;
 			hashRegisters(2, CPU_Registers->R_IR, registers);
 			makeRegisterPointers(2, registers);
-			*(char *)registers[1].p = readChar(CPU_Registers->R_IR[2], *(registers[0].p), drive);
+			*registers[1].p = readChar(NULL, *(registers[0].p), drive);
+			break;
+		case OP_WNC:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "WNC"); //RNC: read n'th character
+			CPU_Registers->R_IR_INST.inst_params = 2;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(2, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(2, registers);
+			writeChar(NULL, (char)*registers[1].p, *registers[0].p, drive);
 			break;
 		case OP_FEX:
 			//Set monitor's parameters
 			strcpy(CPU_Registers->R_IR_INST.inst_name, "FEX"); //FEX: file exists?
 			CPU_Registers->R_IR_INST.inst_params = 2;
 			clock_pulse();
-			hashRegisters(1, CPU_Registers->R_IR, registers);
-			makeRegisterPointers(1, registers);
-			*registers[0].p = fileSearch(CPU_Registers->R_IR[1]) == FILE_FAILED ? false : true;
 			CPU_Registers->step = EXECUTE;
+			hashRegisters(2, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(2, registers);
+			if (registers[1].p) {
+				intPtoString(buffer2, registers[1].p, INTP_TO_CHARP, STRING_SIZE);
+				*registers[0].p = fileSearch(buffer2) == FILE_FAILED ? false : true;
+			} else
+				*registers[0].p = fileSearch(CPU_Registers->R_IR[1]) == FILE_FAILED ? false : true;
 			break;
 		case OP_FSIZE: //TODO: impelement it
 			//Set monitor's parameters
@@ -566,6 +691,14 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->R_IR_INST.inst_params = 1;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
+			break;
+		case OP_GETFILEINFO:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "GETFILEINFO");
+			CPU_Registers->R_IR_INST.inst_params = 2;
+			clock_pulse();
+			hashRegisters(2, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(2, registers);
+			getFileInfo(registers[1].p, *registers[0].p, FILENAME_SIZE);
 			break;
 		//----------------------------------
 		//Mathematical operations
@@ -665,11 +798,10 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 		case OP_FLUSH:
 			//Set monitor's parameters
 			strcpy(CPU_Registers->R_IR_INST.inst_name, "FLUSH"); //Flush a given memory address
-			CPU_Registers->R_IR_INST.inst_params = 1;
+			CPU_Registers->R_IR_INST.inst_params = 0;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
-			strcut(buffer2, CPU_Registers->R_IR[0], 1, -1);
-			flushMemoryAddress(atoi(buffer2), 1);
+			flushMemoryAddress(CPU_Registers->R_MAR, USER_RAM);
 			break;
 		case OP_CLEAR:
 			//Set monitor's parameters
@@ -677,7 +809,16 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->R_IR_INST.inst_params = 0;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
-			memoryInit(1);
+			memoryInit(USER_RAM);
+			break;
+		case OP_MFREE:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "MFREE"); //Clear everything
+			CPU_Registers->R_IR_INST.inst_params = 1;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(1, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(1, registers);
+			*registers[0].p = (long)mem_isFree(USER_RAM, CPU_Registers->R_MAR);
 			break;
 		case OP_MEMWRITE: //Write whatever's in MDR into address MAR
 			//Set monitor's parameters
@@ -747,6 +888,26 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			makeRegisterPointers(3, registers);
 			F_EQ(registers[0].p, registers[1].p, registers[2].p);
 			break;
+		case OP_HIGHER:
+			//Set monitor's parameters
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "HIGHER");
+			CPU_Registers->R_IR_INST.inst_params = 3;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(3, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_HIGHER(registers[0].p, registers[1].p, registers[2].p);
+			break;
+		case OP_LOWER:
+			//Set monitor's parameters
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "LOWER");
+			CPU_Registers->R_IR_INST.inst_params = 3;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(3, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(3, registers);
+			F_LOWER(registers[0].p, registers[1].p, registers[2].p);
+			break;
 		case OP_SHIFTFORWARD:
 			//Set monitor's parameters
 			strcpy(CPU_Registers->R_IR_INST.inst_name, "SHIFTFORWARD");
@@ -755,7 +916,7 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->step = EXECUTE;
 			hashRegisters(3, CPU_Registers->R_IR, registers);
 			makeRegisterPointers(3, registers);
-			*registers[2].p = *registers[0].p >> *registers[1].p;
+			*registers[2].p = *registers[0].p >> *registers[1].p; //TODO: Functionize ts
 			break;
 		case OP_SHIFTBACK:
 			//Set monitor's parameters
@@ -810,6 +971,17 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 					putchar(*registers[0].p);
 			}
 			break;
+		case OP_GETKEY:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "GETKEY");
+			CPU_Registers->R_IR_INST.inst_params = 1;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(1, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(1, registers);
+			input_delay_handler();
+			*(registers[0].p) = ((ch = _getch()) == 0 || ch == 224) ? _getch() : ch; //_getch() returns 0 or 224 for special keys, which is useless for us..
+			input_delay_handler();
+			break;
 		case OP_CLS: //Clear console
 			//Set monitor's parameters
 			strcpy(CPU_Registers->R_IR_INST.inst_name, "CLS");
@@ -859,9 +1031,29 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->R_IR_INST.inst_params = 0;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
-			system_shutdown(drive);
+			system_shutdown();
 			break;
 		case OP_HIBERNATE: //TODO: implement this
+			break;
+		//----------------------------------
+		//Time
+		case OP_GETTIME:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "GETTIME");
+			CPU_Registers->R_IR_INST.inst_params = 1;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(1, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(1, registers);
+			time((time_t *)registers[0].p);
+			break;
+		case OP_GETTIMEZONE:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "GETTIMEZONE");
+			CPU_Registers->R_IR_INST.inst_params = 1;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(1, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(1, registers);
+			*(time_t *)registers[0].p = get_currentTimeZone_offset();
 			break;
 		//----------------------------------
 		//Definitions
@@ -897,7 +1089,7 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->R_IR_INST.inst_params = 1;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
-			CPU_Registers->R_PC = proc[findProc(CPU_Registers->R_IR[0])].end;
+			CPU_Registers->R_PC = proc[programsTop - 1][findProc(CPU_Registers->R_IR[0])].end;
 			(CPU_Registers->R_PC)++;
 			break;
 		case OP_RUNPROC:
@@ -906,10 +1098,10 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->R_IR_INST.inst_params = 1;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
-			proc_stack_top++;
-			prochelper[proc_stack_top] = CPU_Registers->R_PC;
+			prochelper[programsTop - 1][proc_stack_top[programsTop - 1]] = CPU_Registers->R_PC;
+			proc_stack_top[programsTop - 1]++;
 			strcpy(buffer2, CPU_Registers->R_IR[0]);
-			CPU_Registers->R_PC = proc[findProc(buffer2)].start;
+			CPU_Registers->R_PC = proc[programsTop - 1][findProc(buffer2)].start;
 			(CPU_Registers->R_PC)++;
 			break;
 		case OP_ENDPROC:
@@ -918,13 +1110,110 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			CPU_Registers->R_IR_INST.inst_params = 0;
 			clock_pulse();
 			CPU_Registers->step = EXECUTE;
-			CPU_Registers->R_PC = prochelper[proc_stack_top];
-			proc_stack_top--;
+			CPU_Registers->R_PC = prochelper[programsTop - 1][proc_stack_top[programsTop - 1] - 1];
+			proc_stack_top[programsTop - 1]--;
 			break;
+		case OP_ENABLEECHO:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "ENABLEECHO");
+			CPU_Registers->R_IR_INST.inst_params = 0;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			SetConsoleMode(hStdin, echo_on);
+			break;
+		case OP_DISABLEECHO:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "DISABLEECHO");
+			CPU_Registers->R_IR_INST.inst_params = 0;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			SetConsoleMode(hStdin, echo_off);
+			break;
+		case OP_LOADTOMEMORY:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "LOADTOMEMORY");
+			CPU_Registers->R_IR_INST.inst_params = 1;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(1, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(1, registers);
+			loadToMemory(drive, NULL);
+			*registers[0].p = (programs + programsTop - 1)->start;
+			break;
+		case OP_UNLOADFROMMEMORY:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "UNLOADFROMMEMORY");
+			CPU_Registers->R_IR_INST.inst_params = 1;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			unloadFromMemory();
+			break;
+		case OP_CURSORUP:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "CURSORUP");
+			CPU_Registers->R_IR_INST.inst_params = 1;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			printf("\x1b[F");
+			break;
+		case OP_CURSORDOWN:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "CURSORDOWN");
+			CPU_Registers->R_IR_INST.inst_params = 1;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			printf("\x1b[E");
+			break;
+		case OP_DRAWPIXEL:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "DRAWPIXEL");
+			CPU_Registers->R_IR_INST.inst_params = 3;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(3, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(3, registers);
+			printf("\x1b[48;2;%lld;%lld;%lldm \x1b[0m", *registers[0].p, *registers[1].p, *registers[2].p);
+			break;
+		case OP_WRITELOG:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "WRITELOG");
+			CPU_Registers->R_IR_INST.inst_params = 0;
+			fprintf(debugOutput, "%lld\n", CPU_Registers->R_U);
+			break;
+		case OP_STARTSTREAM:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "STARTSTREAM");
+			CPU_Registers->R_IR_INST.inst_params = 0;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			start_stream();
+			break;
+		case OP_STOPSTREAM:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "STOPSTREAM");
+			CPU_Registers->R_IR_INST.inst_params = 0;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			stop_stream();
+			break;
+		case OP_SETBPM:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "SETBPM");
+			CPU_Registers->R_IR_INST.inst_params = 1;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(1, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(1, registers);
+			if (registers[0].p)
+				setBPM((int)*registers[0].p);
+			else
+				setBPM(atoi(CPU_Registers->R_IR[0]));
+			break;
+		case OP_PLAYNOTE:
+			strcpy(CPU_Registers->R_IR_INST.inst_name, "PLAYNOTE");
+			CPU_Registers->R_IR_INST.inst_params = 2;
+			clock_pulse();
+			CPU_Registers->step = EXECUTE;
+			hashRegisters(2, CPU_Registers->R_IR, registers);
+			makeRegisterPointers(2, registers);
+			play_note((unsigned char)*registers[0].p, (unsigned char)*registers[1].p);
+			break;
+
 		case OP_DEBUG_BPOINT:
 			strcpy(CPU_Registers->R_IR_INST.inst_name, "DEBUG");
 			CPU_Registers->R_IR_INST.inst_params = 0;
-			printf("\nDebugging breakpoint reached!\n");
+//			printf("Debugging breakpoint reached!\n");
+//			system("pause");
+//			system("cls");
 			break;
 	}
 	clock_pulse();
@@ -932,10 +1221,11 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 void runCPU(FILE *drive) {
 	start = clock(); //Set start time
 	unsigned long inst;
-	CPU_Registers->R_PC = memoryAddress[0]; //Set the PC value to the start of the currently running program...
-	
+	CPU_Registers->R_PC = programs->start; //Set the PC value to the start of the currently running program...
+	debugOutput = fopen("output.log", "rb+");
+
 	//CPU Cycle
-	while(CPU_Registers->R_PC < memoryAddress[1]) { //FETCH till the program ends...
+	while(CPU_Registers->R_PC < pc_max) { //FETCH till the program ends...
 		inst = fetch();
 		decode_execute(inst, drive);
 	}

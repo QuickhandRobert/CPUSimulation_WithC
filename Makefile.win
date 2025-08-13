@@ -4,14 +4,15 @@
 CPP      = g++.exe -D__DEBUG__
 CC       = gcc.exe -D__DEBUG__
 WINDRES  = windres.exe
-OBJ      = Harddrive.o Computer.o Memory.o Operations.o generalOperations.o CPU.o errorHandler.o
-LINKOBJ  = Harddrive.o Computer.o Memory.o Operations.o generalOperations.o CPU.o errorHandler.o
-LIBS     = -L"C:/msys64/mingw64/lib" -L"C:/msys64/mingw64/x86_64-w64-mingw32/lib" -static-libgcc -g3
+OBJ      = Harddrive.o Computer.o Memory.o Operations.o generalOperations.o CPU.o errorHandler.o audio.o
+LINKOBJ  = Harddrive.o Computer.o Memory.o Operations.o generalOperations.o CPU.o errorHandler.o audio.o
+LIBS     = -L"C:/msys64/mingw64/lib" -L"C:/msys64/mingw64/x86_64-w64-mingw32/lib" -static-libgcc -g3 -lportaudio
 INCS     = -I"C:/msys64/mingw64/include" -I"C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include"
 CXXINCS  = -I"C:/msys64/mingw64/include" -I"C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/14.2.0/include"
 BIN      = "Computer Simulator.exe"
-CXXFLAGS = $(CXXINCS) -g3 -lglfw3 -lopengl32 -lm -lGLU32 -lGLEW32
-CFLAGS   = $(INCS) -g3 -lglfw3 -lopengl32 -lm -lGLU32 -lGLEW32
+CXXFLAGS = $(CXXINCS) -g3 -lglfw3 -lopengl32 -lm -lGLU32 -lGLEW32 -lole32 -lportaudio
+CFLAGS   = $(INCS) -g3 -lglfw3 -lopengl32 -lm -lGLU32 -lGLEW32 -lole32 -lportaudio
+LDFLAGS = -Llib -lportaudio
 DEL      = C:\Program Files (x86)\Embarcadero\Dev-Cpp\devcpp.exe INTERNAL_DEL
 
 .PHONY: all all-before all-after clean clean-custom
@@ -44,3 +45,6 @@ CPU.o: CPU.c
 
 errorHandler.o: errorHandler.c
 	$(CC) -c errorHandler.c -o errorHandler.o $(CFLAGS)
+
+audio.o: audio.c
+	$(CC) -c audio.c -o audio.o $(CFLAGS)

@@ -1,0 +1,251 @@
+@Tic Tac Toe Game Written for PCBox
+@----------------------------------
+@Constant Strings:
+CONST C50 "Press F12 to Exit"
+CONST C51 "Player 1's Turn"
+CONST C52 "Player 2's Turn"
+CONST C53 "Player 1 Wins!"
+CONST C54 "Player 2 Wins!"
+CONST C55 "Use the Keys q-e-w-a-s-d-z-x-c To Play"
+CONST C56 "Press any key to Exit"
+CONST C57 "Draw! No one wins :("
+@----------------------------------
+@Colors
+REGSET S:150 255 @Used for enabled pixels (Red and Blue)
+REGSET S:151 0 @Used for Disabled pixels
+@Frequently Used Values
+REGSET S:157 160
+REGSET S:158 100 @Memory starting point
+REGSET S:159 103
+REGSET S:160 106 
+REGSET S:161 108 @Memory ending points (9 slots)
+REGSET S:162 0 @Free Slot
+REGSET S:163 1 @Player 1 (Red)
+REGSET S:164 2 @Player 2 (Blue)
+REGSET S:165 3 @Number of columns per row
+REGSET S:166 q
+REGSET S:167 w
+REGSET S:168 e
+REGSET S:169 a
+REGSET S:170 s
+REGSET S:171 d
+REGSET S:172 z
+REGSET S:173 x
+REGSET S:174 c
+REGSET S:175 134 @F12
+@----------------------------------
+RUNPROC Memory_Init
+RUNPROC Render_Game
+REGSET Z 0 @Which player's turn is it? (0 Player 1 | 1 Player 2)
+REGSET Y 0 @Logic stuff
+:Next_Player_Input
+RUNPROC Render_Game
+OUTPUT C0
+OUTPUT S:100
+CRUN Z OUTPUT C52
+NOT Z
+CRUN Z OUTPUT C51
+NOT Z
+OUTPUT S:100
+OUTPUT C55
+OUTPUT S:100
+OUTPUT C50
+GETKEY U
+EQ U S:166 Y
+CRUN Y REGSET MAR 100
+CRUN Y GOTO Got_The_Key
+EQ U S:167 Y
+CRUN Y REGSET MAR 101
+CRUN Y GOTO Got_The_Key
+EQ U S:168 Y
+CRUN Y REGSET MAR 102
+CRUN Y GOTO Got_The_Key
+EQ U S:169 Y
+CRUN Y REGSET MAR 103
+CRUN Y GOTO Got_The_Key
+EQ U S:170 Y
+CRUN Y REGSET MAR 104
+CRUN Y GOTO Got_The_Key
+EQ U S:171 Y
+CRUN Y REGSET MAR 105
+CRUN Y GOTO Got_The_Key
+EQ U S:172 Y
+CRUN Y REGSET MAR 106
+CRUN Y GOTO Got_The_Key
+EQ U S:173 Y
+CRUN Y REGSET MAR 107
+CRUN Y GOTO Got_The_Key
+EQ U S:174 Y
+CRUN Y REGSET MAR 108
+CRUN Y GOTO Got_The_Key
+EQ U S:175 Y
+CRUN Y RUNPROC Quit_Tic
+GOTO Next_Player_Input 
+:Got_The_Key
+RUNPROC Update_Game
+RUNPROC Check_Winner
+RUNPROC Check_Draw
+GOTO Next_Player_Input
+@----------------------------------
+@Procedures
+@----------------
+PROC Memory_Init:
+REGCOPY S:158 MAR
+REGSET MDR 0
+:Next_Slot
+MEMWRITE
+INC MAR
+HIGHER MAR S:161 X
+CRUN X ENDPROC
+GOTO Next_Slot
+ENDPROC
+@----------------
+PROC Update_Game:
+MEMLOAD
+CRUN MDR ENDPROC @Don't write stuff if the value in RAM isn't 0
+REGCOPY Z MDR
+INC MDR
+MEMWRITE
+NOT Z
+ENDPROC
+@----------------
+PROC Check_Winner:
+@Horizontals
+REGSET S 157
+:Horizontals
+INC S
+HIGHER S S:157 Y
+CRUN Y GOTO Verticals
+REGCOPY S:S MAR
+MEMLOAD
+REGCOPY MDR X
+INC MAR
+MEMLOAD
+EQ MDR X Y
+NOT Y
+CRUN Y GOTO Horizontals
+INC MAR
+MEMLOAD
+EQ MDR X Y
+NOT Y
+CRUN Y GOTO Horizontals
+CRUN X RUNPROC Winner_Found
+GOTO Horizontals
+:Verticals
+REGCOPY S:158 S
+DEC S
+:Verticals_Loop
+INC S
+EQ S S:159 Y
+CRUN Y GOTO Diagonals
+REGCOPY S MAR
+MEMLOAD
+REGCOPY MDR X
+ADD MAR S:165 MAR
+MEMLOAD
+EQ MDR X Y
+NOT Y
+CRUN Y GOTO Verticals_Loop
+ADD MAR S:165 MAR
+MEMLOAD
+EQ MDR X Y
+NOT Y
+CRUN Y GOTO Verticals_Loop
+CRUN X RUNPROC Winner_Found
+GOTO Verticals_Loop
+@Diagonals
+:Diagonals
+REGSET MAR 100
+MEMLOAD
+REGCOPY MDR X
+REGSET MAR 104
+MEMLOAD
+EQ X MDR Y
+NOT Y
+CRUN Y ENDPROC
+REGSET MAR 108
+MEMLOAD
+EQ MDR X Y
+CRUN Y CRUN X RUNPROC Winner_Found
+REGSET MAR 102
+MEMLOAD
+REGCOPY MDR X
+REGSET MAR 104
+MEMLOAD
+EQ X MDR Y
+NOT Y
+CRUN Y ENDPROC
+REGSET MAR 106
+MEMLOAD
+EQ MDR X Y
+CRUN Y CRUN X RUNPROC Winner_Found
+ENDPROC
+@----------------
+PROC Check_Draw:
+REGCOPY S:158 MAR
+MEMLOAD
+REGCOPY MDR X
+:Next_Slot_Eval
+INC MAR
+MEMLOAD
+NOT MDR
+CRUN MDR ENDPROC
+EQ MAR S:161 Y
+CRUN Y REGSET X 0
+CRUN Y RUNPROC Winner_Found
+GOTO Next_Slot_Eval
+ENDPROC
+@----------------
+PROC Render_Game:
+CLS
+REGCOPY S:158 MAR
+:Render_Next_Slot
+MEMLOAD
+EQ MDR S:162 Y
+CRUN Y RUNPROC Pixel_Black
+EQ MDR S:163 Y
+CRUN Y RUNPROC Pixel_Red
+EQ MDR S:164 Y
+CRUN Y RUNPROC Pixel_Blue
+LO MAR S:165 X
+NOT X
+CRUN X OUTPUT S:100
+INC MAR
+HIGHER MAR S:161 X
+CRUN X ENDPROC
+GOTO Render_Next_Slot
+ENDPROC
+@----------------
+PROC Pixel_Black:
+DRAWPIXEL S:151 S:151 S:151
+ENDPROC
+PROC Pixel_Red:
+DRAWPIXEL S:150 S:151 S:151
+ENDPROC
+PROC Pixel_Blue:
+DRAWPIXEL S:151 S:151 S:150
+ENDPROC
+PROC Quit_Tic:
+OUTPUT S:100
+REGSET MAR 10
+MEMLOAD
+CLEAR
+REGCOPY MDR PC
+ENDPROC
+PROC Winner_Found:
+CLS
+DEC X
+LOWER X S:103 Y
+CRUN Y OUTPUT C57
+CRUN Y GOTO Finish
+CRUN X OUTPUT C54
+NOT X
+CRUN X OUTPUT C53
+:Finish
+OUTPUT S:100
+OUTPUT C56
+OUTPUT S:100
+GETKEY X
+RUNPROC Quit_Tic
+ENDPROC
+END

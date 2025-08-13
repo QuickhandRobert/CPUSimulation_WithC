@@ -5,12 +5,19 @@
 #include <string.h>
 #include <dirent.h>
 #include <conio.h>
+#include <process.h>
 //-------------------------
 //Global Variables
-FILE *drive, *bootdev; //Current drive and .bootdev config file (boot priority)
+FILE *drive, *bootdev, *timezone_cfg; //Current drive and .bootdev bootdev file (boot priority)
 char *boot_drive;
+//Thread Creation (system poweroff trigger)
+HANDLE thread_handle;
+unsigned thread_id;
 //Error Handler
 extern enum errors_def error_code;
+//Timezone handling
+int current_timezone;
+time_zone *timezones;
 //-------------------------
 //Functions
 /***************************************************************************
@@ -21,7 +28,6 @@ extern enum errors_def error_code;
 * Return: Number of found drives                                           *
 *                                                                          *
 ***************************************************************************/
-
 int list_drives(const bool print_flag, char drives[][STRING_SIZE]) {
 	fpos_t pos_zero = 0;
 	DIR *cur_dir;
@@ -79,7 +85,9 @@ char *selectBootDrive() {
 *************************************************************************/
 void update_bootdev() {
 	char drives_prim[MAX_DRIVES][STRING_SIZE], drives_bootdev[MAX_DRIVES][STRING_SIZE];
+	fpos_t f_zero = 0;
 	int bootdev_cnt, prim_cnt;
+	//Update current timezone into .bootdev
 	prim_cnt = list_drives(false, drives_prim);
 	bootdev_cnt = fgets_lineByLine(bootdev, drives_bootdev);
 	for (int i = 0; i < prim_cnt; i++) {
@@ -161,6 +169,101 @@ void boot_setup(char drives_bootdev[][STRING_SIZE], const int drives_cnt) {
 		}
 	}
 }
+int get_currentTimezone() {
+	char buff[STRING_SIZE];
+	fpos_t f_zero = 0;
+	fsetpos(timezone_cfg, &f_zero);
+	fgets(buff, STRING_SIZE, timezone_cfg);
+	removeNewLine(buff);
+	fsetpos(timezone_cfg, &f_zero);
+	return atoi(buff);
+}
+time_t get_currentTimeZone_offset () {
+	return (timezones + current_timezone)->difference;
+}
+void timezones_init() {
+	static time_zone init_timezones[] = {
+		{-43200, "UTC-12:00 (Baker Island, Howland Island)"},
+		{-39600, "UTC-11:00 (Niue, American Samoa)"},
+		{-36000, "UTC-10:00 (Hawaii Standard Time, Tahiti)"},
+		{-34200, "UTC-09:30 (Marquesas Islands)"},
+		{-32400, "UTC-09:00 (Alaska Standard Time, Gambier)"},
+		{-28800, "UTC-08:00 (Pacific Standard Time, Tijuana)"},
+		{-25200, "UTC-07:00 (Mountain Standard Time, Denver)"},
+		{-21600, "UTC-06:00 (Central Standard Time, Chicago)"},
+		{-18000, "UTC-05:00 (Eastern Standard Time, New York)"},
+		{-16200, "UTC-04:30 (Caracas)"},
+		{-14400, "UTC-04:00 (Atlantic Standard Time, Halifax)"},
+		{-12600, "UTC-03:30 (Newfoundland Standard Time)"},
+		{-10800, "UTC-03:00 (Argentina, Brazil, Greenland)"},
+		{-7200, "UTC-02:00 (South Georgia)"},
+		{-3600, "UTC-01:00 (Azores, Cape Verde)"},
+		{0, "UTC+00:00 (Coordinated Universal Time, London)"},
+		{3600, "UTC+01:00 (Central European Time, Paris)"},
+		{7200, "UTC+02:00 (Eastern European Time, Cairo)"},
+		{10800, "UTC+03:00 (Moscow, Riyadh)"},
+		{12600, "UTC+03:30 (Tehran)"},
+		{14400, "UTC+04:00 (Dubai, Baku)"},
+		{16200, "UTC+04:30 (Kabul)"},
+		{18000, "UTC+05:00 (Pakistan, Maldives)"},
+		{19800, "UTC+05:30 (India Standard Time, Mumbai)"},
+		{20700, "UTC+05:45 (Nepal)"},
+		{21600, "UTC+06:00 (Bangladesh, Bhutan)"},
+		{23400, "UTC+06:30 (Cocos Islands, Myanmar)"},
+		{25200, "UTC+07:00 (Thailand, Vietnam)"},
+		{28800, "UTC+08:00 (China Standard Time, Perth)"},
+		{30600, "UTC+08:30 (North Korea)"},
+		{32400, "UTC+09:00 (Japan Standard Time, Seoul)"},
+		{34200, "UTC+09:30 (Australian Central Standard Time)"},
+		{36000, "UTC+10:00 (Australian Eastern Standard Time)"},
+		{37800, "UTC+10:30 (Lord Howe Island)"},
+		{39600, "UTC+11:00 (Solomon Islands, Vanuatu)"},
+		{43200, "UTC+12:00 (Fiji, New Zealand)"},
+		{46800, "UTC+13:00 (Tonga, Phoenix Islands)"},
+		{50400, "UTC+14:00 (Line Islands, Kiribati)"}
+	};
+	timezones = init_timezones;
+	current_timezone = get_currentTimezone();
+}
+void update_timezone() {
+	fpos_t f_zero = 0;
+	fsetpos(timezone_cfg, &f_zero);
+	fprintf(timezone_cfg, "%d\n", current_timezone);
+	fsetpos(timezone_cfg, &f_zero);
+}
+void setup_print_timezones() {
+	for (int i = 0; i < NUMBER_OF_TIMEZONES; i++) {
+		if (i == current_timezone)
+			printf("[ • ] %s\n", (timezones + i) -> desc);
+		else
+			printf("[   ] %s\n", (timezones + i) -> desc);
+	}
+}
+void timezone_setup() {
+	system("cls");
+	update_timezone();
+	while (true) {
+		system("cls");
+		setup_print_timezones();
+		printf("\n\n ↑↓: Navigation\n");
+		printf("[F12]: Exit\n");
+		int c = _getch();
+		if (c == 0 || c == 224) {
+			enum keys extc = _getch();
+			switch(extc) {
+				case DOWNARROW:
+					current_timezone = current_timezone == NUMBER_OF_TIMEZONES - 1 ? 0 : current_timezone + 1;
+					break;
+				case UPARROW:
+					current_timezone = current_timezone == 0 ? NUMBER_OF_TIMEZONES - 1 : current_timezone - 1;
+					break;
+				case F12:
+					return;
+					break;
+			}
+		}
+	}
+}
 /************************************
 * Func: system_boot                 *
 * Params: none                      *
@@ -171,9 +274,10 @@ void boot_setup(char drives_bootdev[][STRING_SIZE], const int drives_cnt) {
 void systm_boot() {
 	system("cls");
 	drive = drive_init(boot_drive);
+	audio_init();
 	memoryInit(SYSTEM_RAM);
 	memoryInit(USER_RAM);
-	shared_memory_handler(REG_INIT);
+	thread_handle = (HANDLE)_beginthreadex(NULL, 0, watch_for_poweroff, NULL, 0, &thread_id);
 	return;
 }
 /************************************
@@ -183,7 +287,7 @@ void systm_boot() {
 * Return: none                      *
 * Desc: Shutdowns stuff             *
 ************************************/
-void system_shutdown(FILE *drive) {
+void system_shutdown() {
 	system("cls");
 	printf("Shuting Down In 3...");
 	Sleep(1000);
@@ -194,7 +298,6 @@ void system_shutdown(FILE *drive) {
 	print_dots(3, 500);
 	memoryInit(SYSTEM_RAM);
 	memoryInit(USER_RAM);
-	shared_memory_handler(REG_UNINIT);
 	printf(" Done\n");
 	printf("Unmounting Drive %s", boot_drive);
 	print_dots(3,500);
@@ -203,6 +306,33 @@ void system_shutdown(FILE *drive) {
 	printf("----------------------------------------\n");
 	printf("All Systems Terminated. Farewell!\n");
 	printf("----------------------------------------\n");
+	shared_memory_handler(REG_UNINIT, false);
+	audio_shutdown();
+	exit(0);
+}
+void system_restart() {
+	char exe_path[STRING_SIZE];
+	char run_buff[STRING_SIZE];
+	GetModuleFileName(NULL, exe_path, STRING_SIZE);
+	sprintf(run_buff, "\"%s\" %s", exe_path, SYSTEM_RESTART_TRIGGER);
+	system("cls");
+	printf("Restarting In 3...");
+	Sleep(1000);
+	printf("2...");
+	Sleep(1000);
+	printf("1...\n");
+	printf("Flushing Random Access Memory");
+	print_dots(3, 500);
+	memoryInit(SYSTEM_RAM);
+	memoryInit(USER_RAM);
+	printf(" Done\n");
+	printf("Unmounting Drive %s", boot_drive);
+	print_dots(3,500);
+	drive_uninit(drive);
+	printf(" Done\n");
+	system("cls");
+	shared_memory_handler(REG_UNINIT, false);
+	system(run_buff);
 	exit(0);
 }
 /*******************************************************************
@@ -210,7 +340,7 @@ void system_shutdown(FILE *drive) {
 * Params: none                                                     *
 *                                                                  *
 * Return: none                                                     *
-* Desc: boot device selector menu (without changing any configs)   *
+* Desc: boot device selector menu (without changing any bootdevs)   *
 *******************************************************************/
 void boot_menu() {
 	system("cls");
@@ -221,11 +351,13 @@ void boot_menu() {
 	list_drives(true, drives);
 	printf("\nEnter Boot Device ID: ");
 	fgets(buffer, STRING_SIZE, stdin);
-	while(!(index = atoi(buffer))) {
+	while(!isdigit((int)*buffer)) {
 		error_code = INVALID_INPUT_NOT_DIGITS;
 		p_error(false);
+		printf("\nEnter Boot Device ID: ");
 		fgets(buffer, STRING_SIZE, stdin);
 	}
+	index = atoi(buffer);
 	strcpy(boot_drive, drives[index]);
 	printf("Booting from: %s", boot_drive);
 	print_dots(3, 750);
@@ -246,6 +378,7 @@ void setup_menu() {
 		int c;
 		system("cls");
 		printf("Press [INSERT] To Enter Boot Setup\n");
+		printf("Press [F11] To Enter Time Zone Settings\n");
 		printf("Press [DEL] To Exit Discarding Changes\n");
 		printf("Press [F12] To Exit Saving Changes\n");
 		c = _getch(); //Get key input
@@ -256,6 +389,11 @@ void setup_menu() {
 					printf("Entering Boot Setup");
 					print_dots(3, 750);
 					boot_setup(drives_bootdev, drives_cnt);
+					break;
+				case F11:
+					printf("Entering Timezone Setup");
+					print_dots(3, 750);
+					timezone_setup();
 					break;
 				case DEL:
 					printf("Exiting Discarding Changes");
@@ -268,6 +406,7 @@ void setup_menu() {
 					print_dots(3, 750);
 					putchar('\n');
 					fputs_lineByLine(bootdev, drives_bootdev, drives_cnt);
+					update_timezone();
 					boot_drive = selectBootDrive();
 					return;
 					break;
@@ -313,6 +452,12 @@ void bios_post() {
 		error_code = OPENING_BOOTDEV_FAILED;
 		p_error(true);
 	}
+	if (!(timezone_cfg = fopen(TIMEZONE_CFG_FILENAME, "rb+"))) {
+		error_code = OPENING_TIMEZONECFG_FAILED;
+		p_error(true);
+	}
+	//Timezone stuff
+	timezones_init();
 	while (true) {
 		system("cls");
 		printf("========================================\n");
@@ -330,6 +475,7 @@ void bios_post() {
 		putchar('\n');
 		printf("▪ Keyboard  : USB HID Keyboard (OK)\n");
 		printf("▪ Mouse     : USB Optical Mouse (OK)\n\n"); //ummm.. yeah.. this is bullshit :P
+		printf("\n🕒 Current Time Zone: %s\n", (timezones + current_timezone)->desc);
 		printf("✅ POST Status: All Systems Operational\n\n");
 		printf("----------------------------------------\n");
 		printf("Press [DEL] to Enter Setup\n");
@@ -383,9 +529,20 @@ void bios_post() {
 		}
 	}
 }
-int main() {
+int main(int argc, char *argv[]) {
+	bool restart_flag = (argc > 1) && strcmp(argv[1], SYSTEM_RESTART_TRIGGER) == 0;
+	shared_memory_handler(REG_INIT, restart_flag);
+	wait_for_power(restart_flag);
 	bios_post();
 	systm_boot();
 	loadToMemory(drive, "");
+//	writeToFile("This is A Test Message.\nused For Testing the Text Editor and the Encryption Service.\n Hope Nothing Breaks =(", "test.txt", drive);
+//	deleteFile("test_e.txt", drive);
+//	writeToFile("Farbod:6383257999\nFatemeh:6383366863\nHelia:7572787954113592\nEND\n", "accounts.db", drive);
+//	writeToFile("Line1\nLine2\nLine3\nLine4\nEND", "newtest.txt", drive);
+//	createFile("nokia.notes", drive);
+//	createFile("encrypt.e", drive);
+//	renameFile("test.txt", "newtest.txt", drive);
 	runCPU(drive);
+
 }

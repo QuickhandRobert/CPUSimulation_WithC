@@ -23,6 +23,9 @@ void p_error(bool terminate) {
 			fprintf(stderr, "Opening .bootdev config file failed. ");
 			perror("");
 			break;
+		case OPENING_TIMEZONECFG_FAILED:
+			fprintf(stderr, "Opening .timezone config file failed. ");
+			perror("");
 		case FILE_EMPTY:
 			fprintf(stderr, "Drive initialization failed, drive is empty.\n");
 			break;
@@ -49,6 +52,9 @@ void p_error(bool terminate) {
 			break;
 		case FILE_DOESNT_EXISTS:
 			fprintf(stderr, "Deleting file %s failed. File doesn\'t exist.\n", error_buff);
+			break;
+		case WRITE_FAILED_ACCESS_DENIED:
+			fprintf(stderr, "Writing to address %s failed, Access Denied.", error_buff);
 			break;
 		case DRIVE_SIZE_INVALID:
 			fprintf(stderr, "Couldn\'t read drive metadata, Drive size invalid. Using default value: %d\n", DEFAULT_DRIVE_SIZE);

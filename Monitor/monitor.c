@@ -30,14 +30,16 @@
 #define FONT_PATH "Fonts/Roboto.ttf"
 #define POWER_OFF_ICON_PATH "power_off.png"
 #define POWER_ON_ICON_PATH "power_on.png"
+#define RESTART_ICON_PATH "restart.png"
 #define CIRCLES_ACTIVE_PATH "circles/circle_active_%d.png"
 #define CIRCLES_PATH "circles/circle_%d.png"
 #define SYNTAX_LIMIT 8
 #define STRING_SIZE 256
-#define CONSTANT_STRINGS 64
+#define REG_STRING_SIZE 2 * STRING_SIZE
+#define CONSTANT_STRINGS 128
 #define WATCH_MENU_ROWS_DEFAULT 8
 #define WATCH_MENU_ROWS_MAX 16
-#define MEMORY_SIZE 64
+#define MEMORY_SIZE 8192
 #define REG_CHARACTER_LIMIT 64
 #define FETCH 0
 #define DECODE 1
@@ -63,32 +65,34 @@ struct R_IR_INSTRUCTION {
 };
 typedef struct CPU_registers {
 	char R_IR[SYNTAX_LIMIT][STRING_SIZE];
-	int R_PC;
-	int R_SP; //Stack Pointer
-	int R_AC; //Accumulator
-	int R_MAR; //Memory Address
-	int R_MDR; //Value
-	int R_U; //General Purpose
-	int R_V; //General Purpose
-	int R_X; //General Purpose
-	int R_Y; //General Purpose
-	int R_Z; //General Purpose
-	unsigned long long R_C; //Clock accumalator
+	long long int R_PC;
+	long long int R_SP; //Stack Pointer
+	long long int R_AC; //Accumulator
+	long long int R_MAR; //Memory Address
+	long long int R_MDR; //Value
+	long long int R_U; //General Purpose
+	long long int R_V; //General Purpose
+	long long int R_X; //General Purpose (Unsigned)
+	long long int R_Y; //General Purpose
+	long long int R_Z; //General Purpose
+	long long int R_C; //Clock accumalator
 	struct R_IR_INSTRUCTION R_IR_INST;
-	int R_S[STRING_SIZE]; //String Handling
-	int R_A[STRING_SIZE]; //String Handling
+	long long R_S[REG_STRING_SIZE]; //String Handling
+	long long R_A[REG_STRING_SIZE]; //String Handling
 	char CONSTSTR[CONSTANT_STRINGS][STRING_SIZE];
 	int step;
 	bool cp_toggle;
 	bool cp_differ_toggle;
 	int CPU_Clock;
+	volatile bool power_state;
+	volatile bool restart_trigger;
 } CPU_registers;
 typedef struct CPU_registers_cache {
 	int R_PC;
 	int R_AC;
 } CPU_registers_cache;
 typedef struct registerP {
-	int *p;
+	long long int *p;
 	int viewType;
 	char name[STRING_SIZE];
 } registerP;
@@ -167,10 +171,10 @@ unsigned long hashStr(char *str) {
 *                                                                                *
 * Return: int pointer to the input register, from the shared memory (fileMap)    *
 *********************************************************************************/
-int *makeRegisterPointer(const char *reg_id) {
+long long int *makeRegisterPointer(const char *reg_id) {
 	char *res;
 	char reg_id_cpy[STRING_SIZE];
-	int index;
+	int index = 0;
 	strncpy(reg_id_cpy, reg_id, STRING_SIZE);
 	if (res = strstr(reg_id_cpy, INDEX_SEPERATOR)) { //Check if the input register has an index
 		*res = '\0'; //If yes tokenize it into two parts, and extract the index from it...
@@ -206,7 +210,7 @@ int *makeRegisterPointer(const char *reg_id) {
 		case PC:
 			return &CPU_Registers->R_PC;
 		case C:
-			return (int *)&CPU_Registers->R_C;
+			return &CPU_Registers->R_C;
 		default:
 			return NULL;
 
@@ -233,7 +237,7 @@ void mem_shiftback(void *data, const size_t element_size, int index, const int c
 * Return: True if successful                                        *
 ********************************************************************/
 bool regWatch_init(const int viewType, const char *reg_id) {
-	int *reg;
+	long long int *reg;
 	if (reg = makeRegisterPointer(reg_id)) {
 		registers[reg_stack_top].p = reg;
 		registers[reg_stack_top].viewType = viewType;
@@ -311,6 +315,19 @@ void gui_shutdown(struct nk_glfw *glfw, GLFWwindow *main_win) {
 	UnmapViewOfFile(CPU_Registers);
 	CloseHandle(hMapFile);
 }
+char *humanize_freq(char *buff, int freq) {
+	char *suffix[] = {"Hz", "Khz", "Mhz"};
+	char length = sizeof(suffix) / sizeof(suffix[0]);
+	int i = 0;
+	double dblFreq = freq;
+	if (freq > 1000) {
+		for (i = 0; (freq / 1000) > 0 && i < length - 1; i++, freq /= 1000) {
+			dblFreq = freq / 1000;
+		}
+	}
+	sprintf(buff, "%.1f %s", dblFreq, suffix[i]);
+	return buff;
+}
 int main() {
 	reg_init();	//Initialize register's sharedmemory (with pc.exe)
 	bool powerState = false;
@@ -325,7 +342,7 @@ int main() {
 	char S_IR[REG_CHARACTER_LIMIT] = {'\0'};
 	char S_AC[REG_CHARACTER_LIMIT] = {'\0'};
 	char S_CPUClock[REG_CHARACTER_LIMIT] = {'\0'};
-	sprintf(S_CPUClock, "%0.1fHz", clock_freq);
+	humanize_freq(S_CPUClock, clock_freq_unit);
 	sprintf(S_PC, "%04d", CPU_Registers->R_PC); //Program Counter
 	sprintf(S_AC, "%04d", CPU_Registers->R_AC); //Accumalator
 	//---------------------------------
@@ -339,7 +356,7 @@ int main() {
 	int knobState = 0;
 	//---------------------------------
 	//Additional window triggers
-	bool watchMenu = false, addMenu = false, typeMenu = false;
+	bool watchMenu = false, addMenu = false, typeMenu = false, copiedAlert = false;
 	int successErrorWindow = REG_DISABLED;
 	//---------------------------------
 	//Glfw window
@@ -348,7 +365,7 @@ int main() {
 	struct nk_context *ctx; //Nuklear context
 	//---------------------------------
 	//Images
-	struct nk_image power[2], circle[10], circle_active[10];
+	struct nk_image power[2], restart, circle[10], circle_active[10];
 	//---------------------------------
 	//Styles
 	struct nk_style_button status_active;
@@ -397,6 +414,7 @@ int main() {
 	//Load images
 	power[0] = img_load(POWER_OFF_ICON_PATH);
 	power[1] = img_load(POWER_ON_ICON_PATH);
+	restart = img_load(RESTART_ICON_PATH);
 	for (int k = 0; k < 10; k++) {
 		char buff[STRING_SIZE];
 		sprintf(buff, CIRCLES_PATH, k);
@@ -472,7 +490,7 @@ int main() {
 				CPU_Registers_Cache.R_PC = CPU_Registers->R_PC;
 			}
 			if (CPU_Registers->R_AC != CPU_Registers_Cache.R_AC) {
-				sprintf(S_AC, "%04d", CPU_Registers->R_AC);
+				sprintf(S_AC, "%04ll", CPU_Registers->R_AC);
 				CPU_Registers_Cache.R_AC = CPU_Registers->R_AC;
 			}
 			//Convert CPU Register values to strings
@@ -535,7 +553,7 @@ int main() {
 				CPU_Registers->cp_differ_toggle = true;
 				clock_freq = clock_freq_unit * (knobState + 1);
 				CPU_Registers->CPU_Clock = 1000 / clock_freq;
-				sprintf(S_CPUClock, "%0.1fHz", clock_freq);
+				humanize_freq(S_CPUClock, clock_freq);
 			}
 			if (CPU_Registers->cp_toggle)
 				nk_draw_image(nk_window_get_canvas(ctx), knob_image_bounds, &circle_active[knobState], nk_white);
@@ -567,8 +585,8 @@ int main() {
 			//---------------------------------
 			//Sixth Row: Debug menu toggle & power button
 			nk_layout_row_dynamic(ctx, 5, 1); //Placeholder
-			nk_layout_row_begin(ctx, NK_DYNAMIC, 60, 3);
-			nk_layout_row_push(ctx, 0.1915f);
+			nk_layout_row_begin(ctx, NK_DYNAMIC, 60, 4);
+			nk_layout_row_push(ctx, 0.133f);
 			nk_label(ctx, "", NK_TEXT_LEFT);
 			nk_layout_row_push(ctx, 0.5f);
 			if (nk_button_label(ctx, watchMenuToggleBuffer[watchMenu])) {
@@ -578,17 +596,25 @@ int main() {
 				else
 					glfwSetWindowSize(main_win, WINDOW_WIDTH, WINDOW_HEIGHT);
 			}
-			//Poer Button
+			//Power Button
 			nk_layout_row_push(ctx, 0.117f);
-			if (nk_button_image_styled(ctx, &no_border, power[powerState]))
-				powerState = !powerState;
+			if (nk_button_image_styled(ctx, &no_border, power[CPU_Registers->power_state]))
+				CPU_Registers->power_state = !CPU_Registers->power_state;
+			nk_layout_row_push(ctx, 0.117f);
+			if (nk_button_image_styled(ctx, &no_border, restart)) {
+				knobState = 0;
+				clock_freq = clock_freq_unit * (knobState + 1);
+				humanize_freq(S_CPUClock, clock_freq);
+				CPU_Registers->restart_trigger = true;
+			}
+
 			nk_layout_row_end(ctx);
 		}
 		nk_end(ctx);
 		//Second Window: Debug Menu
 		if (watchMenu) {
 			char label[STRING_SIZE];
-			const char *viewTypes[] = {"%d", "0x%06x", "%c"}; //Register view formattings (decimal, hex, char)
+			const char *viewTypes[] = {"%lld", "0x%06x", "%c"}; //Register view formattings (decimal, hex, char)
 			int watchMenuMaxRows = reg_stack_top >= WATCH_MENU_ROWS_DEFAULT ? reg_stack_top : WATCH_MENU_ROWS_DEFAULT; //No Scrollbar for watches < WATCH_MENU_ROWS_DEFAULT
 			if (nk_begin(ctx, "Debug", nk_rect(WINDOW_WIDTH, 0, WINDOW_WIDTH, WINDOW_HEIGHT), NK_WINDOW_BORDER | NK_WINDOW_BACKGROUND)) { //Second window: debug menu
 				for (int label_count = 0; label_count < watchMenuMaxRows; label_count++) {
@@ -597,16 +623,24 @@ int main() {
 						continue;
 					sprintf(label, viewTypes[registers[label_count].viewType], *registers[label_count].p);
 					if (nk_widget_is_hovered(ctx))
-						nk_tooltip(ctx, "Click to Remove");
-					if (nk_button_label_styled(ctx, &border_only, registers[label_count].name))
+						nk_tooltip(ctx, "Click to Copy, Right Click to Remove");
+					if (nk_input_is_mouse_click_down_in_rect(&ctx->input, NK_BUTTON_RIGHT, nk_widget_bounds(ctx), true))
 						regWatch_uninit(label_count);
+					if (nk_button_label_styled(ctx, &border_only, registers[label_count].name)) {
+						glfwSetClipboardString(main_win, label);
+						copiedAlert = true;
+					}
 					if (nk_widget_is_hovered(ctx))
-						nk_tooltip(ctx, "Click to Remove");
-					if (nk_button_label_styled(ctx, &border_only, label))
+						nk_tooltip(ctx, "Click to Copy, Right Click to Remove");
+					if (nk_input_is_mouse_click_down_in_rect(&ctx->input, NK_BUTTON_RIGHT, nk_widget_bounds(ctx), true))
 						regWatch_uninit(label_count);
+					if (nk_button_label_styled(ctx, &border_only, label)) {
+						glfwSetClipboardString(main_win, label);
+						copiedAlert = true;
+					}
 				}
 				nk_layout_row_dynamic(ctx, 60, 1);
-				if (nk_button_label(ctx, "Add Watch"))
+				if (nk_button_label(ctx, "Add Watch") && !successErrorWindow)
 					addMenu = true;
 				nk_end(ctx);
 			}
@@ -652,6 +686,18 @@ int main() {
 				if (nk_button_label(ctx, "OK")) {
 					successErrorWindow = REG_DISABLED;
 					*reg_id = '\0'; //Clear textbox buffer after the submit button is pressed for the first time..
+				}
+				nk_end(ctx);
+			}
+		}
+		if (copiedAlert && watchMenu) { //Displayed when copying register's value to clipboard
+			if (nk_begin(ctx, "Clipboard", nk_rect(650, 356, 300, 170), NK_FLAGS_ALERT_WINDOW)) { //Title
+				nk_layout_row_dynamic(ctx, 50, 1);
+				strcpy(temp_buffer, "Copied Successfully");
+				nk_label_colored(ctx, temp_buffer, NK_TEXT_CENTERED, nk_green);
+				nk_layout_row_dynamic(ctx, 50, 1);
+				if (nk_button_label(ctx, "OK")) {
+					copiedAlert = false;
 				}
 				nk_end(ctx);
 			}
