@@ -239,7 +239,7 @@ Uses nuklear immediate mode GUI library, and windows's fileMap to comminucate to
 ![MONITOR](Screenshots/MONITOR/2.png)
 ![MONITOR](Screenshots/MONITOR/3.png)
 ## Dependencies
-#### portaudio, glfw, glew, nuklear, nuklear_glfw, windows.h
+#### portaudio, glfw, glew, nuklear, nuklear_glfw, windows.h, stb_image
 
 
 
