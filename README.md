@@ -65,75 +65,74 @@ typedef struct userRAM {
 ### Instructions
 - Below is a table of each instruction's syntax, and paramters.
 - R1, R2, R3 are given registers (X, Y, Z, MAR, MDR, etc)
-| Command | Parameter 1 | Parameter 2 | Parameter 3 | Description |
-| ------- | ----------- | ----------- | ----------- | ----------- |
-|OR|R1 (src1)|R2 (src2)|R3 (dest)|-|
-|AND|R1 (src1)|R2 (src2)|R3 (dest)|-|
-|NOT|R1 (dest)|-|-|-|
-|XOR|R1 (src1)|R2 (src2)|R3 (dest)|Bitwise XOR|
-|NAND|R1 (src1)|R2 (src2)|R3 (dest)|-|
-|NOR|R1 (src1)|R2 (src2)|R3 (dest)|-|
-|BITAND|R1 (src1)|R2 (src2)|R3 (dest)|Bitwise AND|
-|BITOR|R1 (src1)|R2 (src2)|R3 (dest)|Bitwise OR|
-|FOPEN|R1 or filename|-|-|Both a cache (S, A) or direct string could be used|
-|MKF|R1 or filename|-|-|Both a cache (S, A) or direct string could be used|
-|RM|R1 or filename|-|-|Both a cache (S, A) or direct string could be used|
-|RENAME|R1 or filename|R2 or filename|-|Both a cache (S, A) or direct string could be used|
-|RNC| R1 (n) | R2 (dest) | - | Read nth byte (from currently opened file)|
-|WNC| R1 (n) | R2 (char) | - | Write to nth byte (from currently opened file)|
-|FEX|R1 or filename|R1 (dest)|-|File exists? (Same syntax as FOPEN)|
-|GETFILEINFO|R1 (n)|R2 (dest)|-|Writes nth file on disk's name to a cache (S, A)|
-|ADD|R1 (src1)|R2 (src2)|R3 (dest)|-|
-|SUB|R1 (src1)|R2 (src2)|R3 (dest)|R3 = R1 - R2|
-|DIV|R1 (src1)|R2 (src2)|R3 (dest)|R3 = R1 / R2|
-|MUL|R1 (src1)|R2 (src2)|R3 (dest)|-|
-|LO|R1 (src1)|R2 (src2)|R3 (dest)|Left over (%)|
-|INC| R1 (dest)|-|-|Increment|
-|DEC| R1 (dest)|-|-|Decrement|
-|NEG| R1 (dest)|-|-|Negate|
-|COPY|R1 (src)|-|-|Copy memory values (from R1 to MAR)|
-|FLUSH|-|-|-|Free memory address MAR|
-|CLEAR|-|-|-|Free the whole user memory|
-|MFREE|R1 (dest)|-|-|Check if memory address MAR is free|
-|MEMWRITE|-|-|-|Write MDR into MAR|
-|PMEMWRITE|-|-|-|Write MDR into SP|
-|MEMLOAD|-|-|-|Read MAR into MDR|
-|PMEMLOAD|-|-|-|Read SP into MDR|
-|REGSET|R1 (dest)|x|-|Write x into R1|
-|REGCOPY|R1 (src)|R2 (dest)|-|-|-|
-|EQ|R1 (src1)|R2 (src2)|R3 (dest)|-|
-|HIGHER|R1 (src1)|R2 (src2)|R3 (dest)|-|
-|LOWER|R1 (src1)|R2 (src2)|R3 (dest)|-|
-|SHIFTFORWARD|R1 (src)|R2 (n)|R3 (dest)|Forwards bitwise shift|
-|SHIFTBACK|R1 (src)|R2 (n)|R3 (dest)|Backwards bitwise shift|
-|INPUT|R1 (dest)|-|-|Input a single ASCII character from stdin|
-|OUTPUT|R1 (src)|-|-|Output a single ASCII character to stdout + CONST|
-|GETKEY|R1 (dest)|-|-|Wait for keypress, and write the key into R1|
-|CLS|-|-|-|-|
-|GOTO|label|-|-|GOTO gotolabel (:gotolabel)|
-|CRUN|R1|cmd|-|If R1, then run cmd|
-|SHUTDOWN|-|-|-|-|
-|GETTIME|R1 (dest)|-|-|Get seconds passed from EPOCH|
-|GETTIMEZONE|R1 (dest)|-|-|Get seconds in difference from GMT|
-|CONST|C(n)|str|-|Constant strings definition|
-|ERR|E(n)|str|-|Error definition (#: Replace with integer, $: Replace with str)
-|CERR|E(n)|R1|R2|Print error definition
-|PROC|procname:|-|-|Procedure definition start|
-|ENDPROC|-|-|-|Procedure definition end|
-|RUNPROC|procname|-|-|Run procedure|
-|ENABLEECHO|-|-|-|Enable console input echoing|
-|DISABLEECHO|-|-|-|Disable console input echoing|
-|LOADTOMEMORY|R1 or filename|-|-|Load an executable file into SYSTEM_RAM|
-|UNLOADFROMMEMORY|R1 or filename|-|-|Unload the last executable in the stack from SYSTEM_RAM|
-|CURSORUP|-|-|-|Move console cursor one line upwards|
-|CURSORDOWN|-|-|-|Move console cursor one line downwards|
-|DRAWPIXEL|R1 (r)|R2 (g)|R3 (b)|Draw an RGB pixel in the console|
-|STARTSTREAM|-|-|-|Start portaudio Stream|
-|STOPSTREAM|-|-|-|Stop portaudio Stream|
-|SETBPM|R1 (src)|-|-|Set note playback BPM|
-|PLAYNOTE|R1 (src, freq)|-|-|Play a single note with frequency R1|
-|DEBUG|-|-|-|Pause execution (used for debugging)|
-
+| Command       | Parameter 1       | Parameter 2       | Parameter 3       | Description                                                |
+|--------------|-------------------|-------------------|-------------------|------------------------------------------------------------|
+| OR           | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
+| AND          | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
+| NOT          | R1 (dest)         | -                 | -                 | -                                                          |
+| XOR          | R1 (src1)         | R2 (src2)         | R3 (dest)         | Bitwise XOR                                                |
+| NAND         | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
+| NOR          | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
+| BITAND       | R1 (src1)         | R2 (src2)         | R3 (dest)         | Bitwise AND                                                |
+| BITOR        | R1 (src1)         | R2 (src2)         | R3 (dest)         | Bitwise OR                                                 |
+| FOPEN        | R1 or filename    | -                 | -                 | Cache (S, A) or direct string                              |
+| MKF          | R1 or filename    | -                 | -                 | Cache (S, A) or direct string                              |
+| RM           | R1 or filename    | -                 | -                 | Cache (S, A) or direct string                              |
+| RENAME       | R1 or filename    | R2 or filename    | -                 | Cache (S, A) or direct string                              |
+| RNC          | R1 (n)            | R2 (dest)         | -                 | Read nth byte from opened file                            |
+| WNC          | R1 (n)            | R2 (char)         | -                 | Write to nth byte of opened file                          |
+| FEX          | R1 or filename    | R1 (dest)         | -                 | File exists?                                               |
+| GETFILEINFO  | R1 (n)            | R2 (dest)         | -                 | Write nth file name to cache                              |
+| ADD          | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
+| SUB          | R1 (src1)         | R2 (src2)         | R3 (dest)         | R3 = R1 - R2                                               |
+| DIV          | R1 (src1)         | R2 (src2)         | R3 (dest)         | R3 = R1 / R2                                               |
+| MUL          | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
+| LO           | R1 (src1)         | R2 (src2)         | R3 (dest)         | Left over (%)                                              |
+| INC          | R1 (dest)         | -                 | -                 | Increment                                                  |
+| DEC          | R1 (dest)         | -                 | -                 | Decrement                                                  |
+| NEG          | R1 (dest)         | -                 | -                 | Negate                                                     |
+| COPY         | R1 (src)          | -                 | -                 | Copy memory to MAR                                         |
+| FLUSH        | -                 | -                 | -                 | Free MAR                                                   |
+| CLEAR        | -                 | -                 | -                 | Free all user memory                                       |
+| MFREE        | R1 (dest)         | -                 | -                 | Check if MAR is free                                       |
+| MEMWRITE     | -                 | -                 | -                 | Write MDR into MAR                                         |
+| PMEMWRITE    | -                 | -                 | -                 | Write MDR into SP                                          |
+| MEMLOAD      | -                 | -                 | -                 | Read MAR into MDR                                          |
+| PMEMLOAD     | -                 | -                 | -                 | Read SP into MDR                                           |
+| REGSET       | R1 (dest)         | x                 | -                 | Write x into R1                                            |
+| REGCOPY      | R1 (src)          | R2 (dest)         | -                 | Copy register values                                       |
+| EQ           | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
+| HIGHER       | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
+| LOWER        | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
+| SHIFTFORWARD | R1 (src)          | R2 (n)            | R3 (dest)         | Bitwise shift forward                                      |
+| SHIFTBACK    | R1 (src)          | R2 (n)            | R3 (dest)         | Bitwise shift backward                                     |
+| INPUT        | R1 (dest)         | -                 | -                 | Input ASCII from stdin                                     |
+| OUTPUT       | R1 (src)          | -                 | -                 | Output ASCII to stdout + CONST                            |
+| GETKEY       | R1 (dest)         | -                 | -                 | Wait for keypress                                          |
+| CLS          | -                 | -                 | -                 | Clear screen                                               |
+| GOTO         | label             | -                 | -                 | Jump to label (:label)                                     |
+| CRUN         | R1                | cmd               | -                 | If R1, run cmd                                             |
+| SHUTDOWN     | -                 | -                 | -                 | Shutdown system                                            |
+| GETTIME      | R1 (dest)         | -                 | -                 | Seconds since EPOCH                                        |
+| GETTIMEZONE  | R1 (dest)         | -                 | -                 | Seconds offset from GMT                                    |
+| CONST        | C(n)              | str               | -                 | Define constant string                                     |
+| ERR          | E(n)              | str               | -                 | Define error (#: int, $: str)                              |
+| CERR         | E(n)              | R1                | R2                | Print error                                                |
+| PROC         | procname:         | -                 | -                 | Start procedure                                            |
+| ENDPROC      | -                 | -                 | -                 | End procedure                                              |
+| RUNPROC      | procname          | -                 | -                 | Run procedure                                              |
+| ENABLEECHO   | -                 | -                 | -                 | Enable input echo                                          |
+| DISABLEECHO  | -                 | -                 | -                 | Disable input echo                                         |
+| LOADTOMEMORY | R1 or filename    | -                 | -                 | Load executable into SYSTEM_RAM                            |
+| UNLOADFROMMEMORY | R1 or filename | -                | -                 | Unload last executable from SYSTEM_RAM                     |
+| CURSORUP     | -                 | -                 | -                 | Move cursor up                                             |
+| CURSORDOWN   | -                 | -                 | -                 | Move cursor down                                           |
+| DRAWPIXEL    | R1 (r)            | R2 (g)            | R3 (b)            | Draw RGB pixel                                             |
+| STARTSTREAM  | -                 | -                 | -                 | Start portaudio stream                                     |
+| STOPSTREAM   | -                 | -                 | -                 | Stop portaudio stream                                      |
+| SETBPM       | R1 (src)          | -                 | -                 | Set BPM                                                    |
+| PLAYNOTE     | R1 (freq)         | -                 | -                 | Play note                                                  |
+| DEBUG        | -                 | -                 | -                 | Pause execution                                            |
 ### Audio Playback (MIDI notes)
 - Uses portaudio
 - Creates a square wave with a gievn frequency and plays it
