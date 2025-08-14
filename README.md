@@ -7,7 +7,7 @@ The project mainly consists of two seperate parts, which comminucate using windo
 
 1. The computer itself
 2. System monitor GUi
-## The computer itself
+## The Computer Itself
 ### Main Components
 #### CPU
 - Has the registers IR, PC, SP, AC, MAR, MDR, U, V, X, Y, Z
@@ -65,7 +65,8 @@ typedef struct userRAM {
 ### Instructions
 - Below is a table of each instruction's syntax, and paramters.
 - R1, R2, R3 are given registers (X, Y, Z, MAR, MDR, etc)
-| Command       | Parameter 1       | Parameter 2       | Parameter 3       | Description                                                |
+
+| Command      | Parameter 1       |  Parameter 2      | Parameter 3       | Description                                                |
 |--------------|-------------------|-------------------|-------------------|------------------------------------------------------------|
 | OR           | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
 | AND          | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
@@ -79,10 +80,10 @@ typedef struct userRAM {
 | MKF          | R1 or filename    | -                 | -                 | Cache (S, A) or direct string                              |
 | RM           | R1 or filename    | -                 | -                 | Cache (S, A) or direct string                              |
 | RENAME       | R1 or filename    | R2 or filename    | -                 | Cache (S, A) or direct string                              |
-| RNC          | R1 (n)            | R2 (dest)         | -                 | Read nth byte from opened file                            |
-| WNC          | R1 (n)            | R2 (char)         | -                 | Write to nth byte of opened file                          |
+| RNC          | R1 (n)            | R2 (dest)         | -                 | Read nth byte from opened file                             |
+| WNC          | R1 (n)            | R2 (char)         | -                 | Write to nth byte of opened file                           |
 | FEX          | R1 or filename    | R1 (dest)         | -                 | File exists?                                               |
-| GETFILEINFO  | R1 (n)            | R2 (dest)         | -                 | Write nth file name to cache                              |
+| GETFILEINFO  | R1 (n)            | R2 (dest)         | -                 | Write nth file name to cache                               |
 | ADD          | R1 (src1)         | R2 (src2)         | R3 (dest)         | -                                                          |
 | SUB          | R1 (src1)         | R2 (src2)         | R3 (dest)         | R3 = R1 - R2                                               |
 | DIV          | R1 (src1)         | R2 (src2)         | R3 (dest)         | R3 = R1 / R2                                               |
@@ -133,6 +134,7 @@ typedef struct userRAM {
 | SETBPM       | R1 (src)          | -                 | -                 | Set BPM                                                    |
 | PLAYNOTE     | R1 (freq)         | -                 | -                 | Play note                                                  |
 | DEBUG        | -                 | -                 | -                 | Pause execution                                            |
+
 ### Audio Playback (MIDI notes)
 - Uses portaudio
 - Creates a square wave with a gievn frequency and plays it
@@ -204,12 +206,42 @@ Uses nuklear immediate mode GUI library, and windows's fileMap to comminucate to
 ## Screenshots
 ### Programs
 #### Os.e
+![OS](Screenshots/OS/0.png)
+![OS](Screenshots/OS/1.png)
+![OS](Screenshots/OS/2.png)
+#### Img.e
+![IMG](Screenshots/IMG/0.png)
+![IMG](Screenshots/IMG/1.png)
+#### Imgfx.e
+![IMGFX](Screenshots/IMGFX/0.png)
+![IMGFX](Screenshots/IMGFX/1.png)
+#### txt.e
+![TXT](Screenshots/TEXTEDITOR/0.png)
+#### encrypt.e
+![ENCRYPT](Screenshots/ENCRYPT/0.png)
+![ENCRYPT](Screenshots/ENCRYPT/1.png)
+#### tictactoe.e
+![TIC](Screenshots/TICTACTOE/0.png)
+![TIC](Screenshots/TICTACTOE/1.png)
+#### numberguessgame.e
+![GUESS](Screenshots/GUESS/0.png)
+#### music.e
+[![Watch the video](https://github.com/user-attachments/assets/14cede2f-f67e-498f-ad46-2a9087d05c49)](Screenshots/MUSIC/music.mp4)
+### Bios
+![BIOS](Screenshots/BIOS/0.png)
+![BIOS](Screenshots/BIOS/1.png)
+![BIOS](Screenshots/BIOS/2.png)
+![BIOS](Screenshots/BIOS/3.png)
+![BIOS](Screenshots/BIOS/4.png)
+### Monitor
+![MONITOR](Screenshots/MONITOR/0.png)
+![MONITOR](Screenshots/MONITOR/1.png)
+![MONITOR](Screenshots/MONITOR/2.png)
+![MONITOR](Screenshots/MONITOR/3.png)
+## Dependencies
+#### portaudio, glfw, glew, nuklear, nuklear_glfw, windows.h
 
 
-	
-
-
-	
 
 
 
