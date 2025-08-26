@@ -12,12 +12,12 @@ FILE *drive, *bootdev, *timezone_cfg; //Current drive and .bootdev bootdev file 
 char *boot_drive;
 //Thread Creation (system poweroff trigger)
 HANDLE thread_handle;
-unsigned thread_id;
+long thread_id;
 //Error Handler
 extern enum errors_def error_code;
 //Timezone handling
 int current_timezone;
-time_zone *timezones;
+time_zone_t *timezones;
 //-------------------------
 //Functions
 /***************************************************************************
@@ -29,7 +29,6 @@ time_zone *timezones;
 *                                                                          *
 ***************************************************************************/
 int list_drives(const bool print_flag, char drives[][STRING_SIZE]) {
-	fpos_t pos_zero = 0;
 	DIR *cur_dir;
 	struct dirent *filedata;
 	int i = 0;
@@ -62,9 +61,9 @@ int list_drives(const bool print_flag, char drives[][STRING_SIZE]) {
 *                                                    *
 *****************************************************/
 char *selectBootDrive() {
-	fpos_t zero = 0;
 	static char boot_drive[STRING_SIZE];
-	fsetpos(bootdev, &zero);
+	char buff[STRING_SIZE];
+	rewind(bootdev);
 	do {
 		if (!fgets(boot_drive, STRING_SIZE, bootdev)) {
 			error_code = BOOTDRIVE_NOT_FOUND;
@@ -72,8 +71,9 @@ char *selectBootDrive() {
 			return NULL;
 		}
 		removeNewLine(boot_drive);
-	} while(access(boot_drive, F_OK) != 0);
-	fsetpos(bootdev, &zero);
+		sprintf(buff, "%s/%s", DRIVES_DIR, boot_drive);
+	} while(access(buff, F_OK) != 0);
+	rewind(bootdev);
 	return boot_drive;
 }
 /*************************************************************************
@@ -85,7 +85,6 @@ char *selectBootDrive() {
 *************************************************************************/
 void update_bootdev() {
 	char drives_prim[MAX_DRIVES][STRING_SIZE], drives_bootdev[MAX_DRIVES][STRING_SIZE];
-	fpos_t f_zero = 0;
 	int bootdev_cnt, prim_cnt;
 	//Update current timezone into .bootdev
 	prim_cnt = list_drives(false, drives_prim);
@@ -169,20 +168,40 @@ void boot_setup(char drives_bootdev[][STRING_SIZE], const int drives_cnt) {
 		}
 	}
 }
+/*****************************************************
+* Func: get_currentTimezone                          *
+* Params: none                                       *
+*                                                    *
+* Return: Timezone index                             *
+* Desc: reads the config data from .timezone file    *
+*       and returns it                               *
+*****************************************************/
 int get_currentTimezone() {
 	char buff[STRING_SIZE];
-	fpos_t f_zero = 0;
-	fsetpos(timezone_cfg, &f_zero);
+	rewind(timezone_cfg);
 	fgets(buff, STRING_SIZE, timezone_cfg);
 	removeNewLine(buff);
-	fsetpos(timezone_cfg, &f_zero);
+	rewind(timezone_cfg);
 	return atoi(buff);
 }
+/*****************************************************
+* Func: get_currentTimeZone_offset                   *
+* Params: none                                       *
+*                                                    *
+* Return: Timezone offset from GMT                   *
+*****************************************************/
 time_t get_currentTimeZone_offset () {
 	return (timezones + current_timezone)->difference;
 }
+/********************************************
+* Func: timezones_init                      *
+* Params: none                              *
+*                                           *
+* Return: none                              *
+* Desc: timezones array initilization       *
+********************************************/
 void timezones_init() {
-	static time_zone init_timezones[] = {
+	static time_zone_t init_timezones[] = {
 		{-43200, "UTC-12:00 (Baker Island, Howland Island)"},
 		{-39600, "UTC-11:00 (Niue, American Samoa)"},
 		{-36000, "UTC-10:00 (Hawaii Standard Time, Tahiti)"},
@@ -225,12 +244,25 @@ void timezones_init() {
 	timezones = init_timezones;
 	current_timezone = get_currentTimezone();
 }
+/********************************************
+* Func: update_timezone                     *
+* Params: none                              *
+*                                           *
+* Return: none                              *
+* Desc: Updates the config file             *
+********************************************/
 void update_timezone() {
-	fpos_t f_zero = 0;
-	fsetpos(timezone_cfg, &f_zero);
+	rewind(timzone_cfg);
 	fprintf(timezone_cfg, "%d\n", current_timezone);
-	fsetpos(timezone_cfg, &f_zero);
+	rewind(timzone_cfg);
 }
+/********************************************
+* Func: setup_print_timezones               *
+* Params: none                              *
+*                                           *
+* Return: none                              *
+* Desc: Timezones setup helper function     *
+********************************************/
 void setup_print_timezones() {
 	for (int i = 0; i < NUMBER_OF_TIMEZONES; i++) {
 		if (i == current_timezone)
@@ -239,6 +271,12 @@ void setup_print_timezones() {
 			printf("[   ] %s\n", (timezones + i) -> desc);
 	}
 }
+/********************************************
+* Func: timezone_setup                      *
+* Params: none                              *
+*                                           *
+* Return: none                              *
+********************************************/
 void timezone_setup() {
 	system("cls");
 	update_timezone();
@@ -272,13 +310,14 @@ void timezone_setup() {
 * Desc: Initliazes stuff            *
 ************************************/
 void systm_boot() {
+	char buff[STRING_SIZE];
 	system("cls");
-	drive = drive_init(boot_drive);
+	sprintf(buff, "%s/%s", DRIVES_DIR, boot_drive);
+	drive = drive_init(buff);
 	audio_init();
 	memoryInit(SYSTEM_RAM);
 	memoryInit(USER_RAM);
-	thread_handle = (HANDLE)_beginthreadex(NULL, 0, watch_for_poweroff, NULL, 0, &thread_id);
-	return;
+    thread_handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)watch_for_poweroff, NULL, 0, &thread_id);
 }
 /************************************
 * Func: system_shutdown             *
@@ -310,9 +349,22 @@ void system_shutdown() {
 	audio_shutdown();
 	exit(0);
 }
+/************************************
+* Func: system_restart              *
+* Params: FILE *drive               *
+*                                   *
+* Return: none                      *
+* Desc: Restarts stuff              *
+************************************/
 void system_restart() {
 	char exe_path[STRING_SIZE];
 	char run_buff[STRING_SIZE];
+	STARTUPINFO s_info;
+	PROCESS_INFORMATION p_info;
+	//Initialize to default values, because, we're dealing with the Windows API here, and nothing makes sense there
+	memset(&s_info, 0, sizeof(s_info));
+	memset(&p_info, 0, sizeof(p_info));
+	s_info.cb = sizeof(s_info);
 	GetModuleFileName(NULL, exe_path, STRING_SIZE);
 	sprintf(run_buff, "\"%s\" %s", exe_path, SYSTEM_RESTART_TRIGGER);
 	system("cls");
@@ -332,8 +384,11 @@ void system_restart() {
 	printf(" Done\n");
 	system("cls");
 	shared_memory_handler(REG_UNINIT, false);
-	system(run_buff);
-	exit(0);
+	audio_shutdown();
+	CreateProcess(NULL, run_buff, NULL, NULL, false, 0, NULL, NULL, &s_info, &p_info);
+	CloseHandle(p_info.hProcess);
+	CloseHandle(p_info.hThread);
+	ExitProcess(0);
 }
 /*******************************************************************
 * Func: boot_menu                                                  *
@@ -466,7 +521,7 @@ void bios_post() {
 		printf("          © QuickhandRobert - 2025      \n");
 		printf("========================================\n\n");
 		printf("▸ CPU       : Running on %0.4fHz, OK\n", freq);
-		humanized_size = humanSize((MEMORY_SIZE * (sizeof(userRAM) + sizeof(systemRAM))));
+		humanized_size = humanSize((MEMORY_SIZE * (sizeof(userRAM_t) + sizeof(systemRAM_t))));
 		printf("▸ RAM       : %s, OK (Dual Channel)\n\n", humanized_size);
 		printf("Storage Devices:\n");
 		boot_drive = selectBootDrive(); //Determine boot drive, will exit if not found..
@@ -529,9 +584,30 @@ void bios_post() {
 		}
 	}
 }
+/*************************************
+* Func: monitor_init                 *
+* Params: bool restart flag          *
+*                                    *
+* Return: none                       *
+* Desc: starts the monitor process   *
+*************************************/
+void monitor_init(bool restart_flag) {
+	if (!restart_flag) {
+		STARTUPINFO s_info;
+		PROCESS_INFORMATION p_info;
+		//Initialize to default values, because, we're dealing with the Windows API here, and nothing makes sense there
+		memset(&s_info, 0, sizeof(s_info));
+		memset(&p_info, 0, sizeof(p_info));
+		s_info.cb = sizeof(s_info);
+		CreateProcess("monitor.exe", NULL, NULL, NULL, true, CREATE_DEFAULT_ERROR_MODE, NULL, NULL, &s_info, &p_info);
+		CloseHandle(p_info.hProcess);
+		CloseHandle(p_info.hThread);
+	}
+}
 int main(int argc, char *argv[]) {
-	bool restart_flag = (argc > 1) && strcmp(argv[1], SYSTEM_RESTART_TRIGGER) == 0;
+	bool restart_flag = (argc > 1) && (strcmp(argv[1], SYSTEM_RESTART_TRIGGER) == 0 || strcmp(argv[1], SYSTEM_NO_MONITOR) == 0);
 	shared_memory_handler(REG_INIT, restart_flag);
+	monitor_init(restart_flag);
 	wait_for_power(restart_flag);
 	bios_post();
 	systm_boot();

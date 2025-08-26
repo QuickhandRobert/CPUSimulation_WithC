@@ -3,8 +3,8 @@
 #include "headers.h"
 
 //Global Variables
-systemRAM systemMemory[MEMORY_SIZE];
-userRAM userMemory [MEMORY_SIZE];
+systemRAM_t systemMemory[MEMORY_SIZE];
+userRAM_t userMemory [MEMORY_SIZE];
 //Error Handler
 extern enum errors_def error_code;
 extern char error_buff[STRING_SIZE];
@@ -114,6 +114,13 @@ unsigned long readFromMemory(const int dataType, const int memoryType, const int
 			return userMemory[memoryBlockAddress0].data;
 	}
 }
+/******************************************************
+* Func: mem_isFree                                    *
+* Params: const int memoryType                        *
+*         const int index                             *
+*                                                     *
+* Return: bool                                        *
+******************************************************/
 bool mem_isFree(const int memoryType, const int index) {
 	if (!memAddress_check(index)) //Sanity check
 		return false;

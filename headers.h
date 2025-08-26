@@ -9,10 +9,11 @@
 #define MAX_DRIVES 64
 #define POST_WAIT_DURATION 3000 //The amount of time the BIOS waits before booting, after POST, in ms
 #define DRIVE_EXT ".bin"
-#define DRIVES_DIR "./"
+#define DRIVES_DIR "./Drives"
 #define BOOTDEV_CFG_FILENAME ".bootdev"
 #define TIMEZONE_CFG_FILENAME ".timezone"
 #define SYSTEM_RESTART_TRIGGER "system_restart" //The command line attribute which the systems looks for to know if it has be restarted or a fresh boot
+#define SYSTEM_NO_MONITOR "--no-monitor"
 #define WATCH_FOR_POWEROFF_WAIT_INTERVAL 10 //How often should the system check for the power_state (changed by monitor.exe), in ms
 //Frequently used values
 #define STRING_SIZE 256
@@ -44,7 +45,7 @@
 #define MEMORY_SIZE 8192
 //CPU Clock configurations
 #define MINIMUM_CLOCK_DURATION 0 //Used for error handling, prevents the system from running too fast
-#define CLOCK_PULSE 1
+#define CLOCK_PULSE 100
 #define CLOCK_PULSE_TOGGLE_RATIO 50 //What percentage of the clock pulse duration should the monitor's clockpulse indicator turn on?
 //Audio Stuff
 #define AUDIO_AMPLITUDE INT_MAX / 2
@@ -73,6 +74,8 @@
 #define PROGRAM_ENDED -2
 #define CHARP_TO_INTP 0
 #define INTP_TO_CHARP 1
+#define SEC_FREE 0
+#define SEC_OCCUPIED 1
 //-------------------------------------------
 #endif
 //Structs
@@ -81,28 +84,28 @@ typedef struct metadata {
 	int size;
 	long start_sector;
 	bool isFree;
-} metadata;
+} metadata_t;
 typedef struct systemRAM {
 	unsigned long instruction;
 	char data[SYNTAX_LIMIT][STRING_SIZE];
 	int type;
 	bool isFree;
-} systemRAM;
+} systemRAM_t;
 typedef struct userRAM {
 	int data;
 	bool isFree;
-} userRAM;
+} userRAM_t;
 typedef struct registerP {
 	long long *p;
 	int type;
 	int index;
 	unsigned long hashed;
-} registerP;
+} registerP_t;
 typedef struct procedure {
 	char name[LINE_BUFFER_SIZE];
 	int start;
 	int end;
-} procedure;
+} procedure_t;
 	struct R_IR_INSTRUCTION{
 		char inst_name[CONSTANT_STRINGS];
 		int inst_params;
@@ -130,23 +133,25 @@ typedef struct CPU_registers {
 	int CPU_Clock;
 	volatile bool power_state;
 	volatile bool restart_trigger;
-} CPU_registers;
+	long p_id;
+	volatile bool p_id_trigger;
+} CPU_registers_t;
 typedef struct disk_info {
 	long totalSize;
 	long sectorSize;
 	long disk_info_len;
-} disk_info;
+} disk_info_t;
 typedef struct gotoPoint {
 	long pos;
 	char name[STRING_SIZE];
-} gotoPoint;
+} gotoPoint_t;
 typedef struct time_zone {
 	time_t difference;
 	char desc[STRING_SIZE];
-} time_zone;
+} time_zone_t;
 typedef struct program {
 	int start;
-} program;
+} program_t;
 //-------------------------------------------
 //Enums
 enum post_stat {
@@ -212,9 +217,9 @@ enum operations_hashed {
     OP_CLEAR           = 216417516,
     OP_MFREE           = 228075380,
     OP_MEMWRITE        = 82081455,
-    OP_PMEMWRITE       = 3794864031,
+    OP_SMEMWRITE       = 3794864031,
     OP_MEMLOAD         = 3516152612,
-    OP_PMEMLOAD        = 505048596,
+    OP_SMEMLOAD        = 505048596,
     OP_REGSET          = 3425631311,
     OP_REGCOPY         = 1376119422,
     OP_EQ              = 5862267,
@@ -282,7 +287,7 @@ bool isStringEmpty(const char *);
 bool isLineEmpty(const char *);
 unsigned long hashStr(char *);
 int read_int(char);
-void hashRegisters(const int, char [SYNTAX_LIMIT][STRING_SIZE], registerP*);
+void hashRegisters(const int, char [SYNTAX_LIMIT][STRING_SIZE], registerP_t*);
 void metadata_init(FILE *);
 long sectorSearch();
 int metadataMemorySearch();
@@ -303,9 +308,9 @@ void flushMemoryAddress(int, int);
 void writeToMemory(const int, const int, const int, const int, const unsigned long, char *);
 unsigned long readFromMemory(int, int, int, int, char *);
 unsigned long fetch();
-void makeRegisterPointers(int, registerP *);
+void makeRegisterPointers(int, registerP_t *);
 void error_def();
-void print_error(registerP *);
+void print_error(registerP_t *);
 void loadToMemory(FILE *, char *);
 bool mem_isFree(const int, const int);
 void proc_init();
@@ -343,7 +348,7 @@ void print_dots(const int, const long);
 int fgets_lineByLine(FILE* , char [][STRING_SIZE]);
 void shift_strings(char [][STRING_SIZE], int, int, int);
 void fputs_lineByLine(FILE*, const char [][STRING_SIZE], const int);
-disk_info get_disk_info(const char *);
+disk_info_t get_disk_info(const char *);
 FILE *drive_init(const char *);
 void drive_uninit(FILE *);
 void system_shutdown();
@@ -352,7 +357,7 @@ char *IR_tokenizer(char *, bool);
 void goto_point_init();
 void p_error(bool);
 void wait_for_power(bool);
-unsigned __stdcall watch_for_poweroff(void *);
+void watch_for_poweroff();
 void intPtoString(char *, long long int *, const bool, const int);//void clear_screen(void);
 time_t get_currentTimeZone_offset();
 void getFileInfo(long long int*, const int, const int);
@@ -365,3 +370,4 @@ void start_stream();
 void stop_stream();
 void setBPM (const int);
 void play_note(unsigned char, unsigned char);
+void pause_program();

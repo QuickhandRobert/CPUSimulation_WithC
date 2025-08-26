@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include "headers.h"
 //Memory Variables
-static metadata *metadataMemory;
-static disk_info *drivemetadata;
+static metadata_t *metadataMemory;
+static disk_info_t *drivemetadata;
 //Hard Drive Free Sectors
 static bool *freeSectors;
 //Error handler
@@ -18,20 +18,20 @@ extern char error_buff[STRING_SIZE];
 ***********************************************************/
 FILE *drive_init(const char *filename) {
 	FILE *drive;
-	static disk_info tmp;
+	static disk_info_t tmp;
 	tmp = get_disk_info(filename); //Get drive metadata from the .bin file
 	//Assign them to drivemetadata struct
 	drivemetadata = &tmp;
 	long numberOfFiles = (drivemetadata->totalSize / drivemetadata->sectorSize);
 	drive = fopen(filename, "rb+");
 	//Memory allocations (dynamically, according to the drive metadata that we just got)/
-	metadataMemory = (metadata *)malloc(sizeof(metadata) * numberOfFiles);
+	metadataMemory = (metadata_t *)malloc(sizeof(metadata_t) * numberOfFiles);
 	freeSectors = (bool *)malloc(sizeof(bool) * numberOfFiles);
 	//Initialize stuff
 	sector_init(0, numberOfFiles, 0);
 	metadataMemoryInit();
 	metadata_init(drive);
-	openFile(metadataMemory[0].filename, drive); //Open OS file (first file)
+	openFile(metadataMemory->filename, drive); //Open OS file (first file)
 	return drive;
 }
 /************************************
@@ -72,7 +72,7 @@ void metadata_init(FILE *drive) {
 	int start, i, i_buffer;
 	char buffer[LINE_BUFFER_SIZE] = {0}, buffer_backup[LINE_BUFFER_SIZE];
 	char *res;
-	freeSectors[0] = 1; //First sector is preserved for the metadata
+	freeSectors[0] = SEC_OCCUPIED; //First sector is preserved for the metadata
 	if (!fgets_fixed(buffer, LINE_BUFFER_SIZE, drive, '\"', false)) { //Skip metadata (first line)
 		error_code = FILE_EMPTY;
 		p_error(true);
@@ -83,7 +83,7 @@ void metadata_init(FILE *drive) {
 	}
 	strncpy(buffer_backup, buffer, LINE_BUFFER_SIZE);
 	removeNewLine(buffer);
-	for (i = 0; strcmp(buffer, "END\n") != 0 && strcmp(buffer,"END") != 0; i++) {
+	for (i = 0; strcmp(buffer,"END") != 0; i++) {
 		if (strcmp(buffer, "") == 0) {
 			error_code = FILEINIT_FAILURE_FILENAME_NOTPRESENT;
 			strcpy(error_buff, buffer_backup);
@@ -93,7 +93,7 @@ void metadata_init(FILE *drive) {
 		}
 		res = strtok_fixed(buffer, " ", '\"');
 		strcpy(metadataMemory[i].filename, res); //Set filename
-		//Calculate filesize from metadata
+		//Evaluate filesize from metadata
 		res = strtok_fixed(NULL, " ", '\"');
 		i_buffer = atoi(res);
 		if (!i_buffer) {
@@ -116,7 +116,7 @@ void metadata_init(FILE *drive) {
 		}
 		metadataMemory[i].start_sector = i_buffer;
 		//Set all sectors of the current file to not-free
-		sector_init(metadataMemory[i].start_sector, metadataMemory[i].size, 1);
+		sector_init(metadataMemory[i].start_sector, metadataMemory[i].size, SEC_OCCUPIED);
 		fgets_fixed(buffer, LINE_BUFFER_SIZE, drive, '\"', false); //Iterate on file
 		removeNewLine(buffer);
 		metadataMemory[i].isFree = false; //metadataMemory slot occupied
@@ -171,7 +171,7 @@ long fileSearch (const char *filename) {
 * Return: none                                     *
 ***************************************************/
 void openFile (const char *filename, FILE *drive) {
-	fpos_t newpos;
+	long newpos;
 	long file_pos = fileSearch(filename);
 	if (file_pos == FILE_FAILED) {
 		strcpy(error_buff, filename);
@@ -180,7 +180,7 @@ void openFile (const char *filename, FILE *drive) {
 		return;
 	}
 	newpos = (metadataMemory + file_pos)->start_sector * drivemetadata->sectorSize;
-	fsetpos(drive, &newpos);
+	fseek(drive, newpos, SEEK_SET);
 }
 /******************************************************************************
 * Func: writeToFile                                                           *
@@ -277,13 +277,13 @@ void createFile(const char *filename, FILE *drive) {
 	strcpy(metadataMemory[memorySlot].filename, filename);
 	metadataMemory[memorySlot].start_sector = freeSector;
 	metadataMemory[memorySlot].size = 1;
-	metadataMemory[memorySlot].isFree = 0;
+	metadataMemory[memorySlot].isFree = false;
 	newpos = drivemetadata->sectorSize * freeSector;
 	fsetpos(drive, &newpos);
 	fputs("\nEND\n", drive);
 	fsetpos(drive, &oldpos);
 	updateDriveMetadata(drive);
-	sector_init(freeSector, 1, 1);
+	sector_init(freeSector, 1, SEC_OCCUPIED);
 }
 /****************************************************
 * Func: deleteFile                                  *
@@ -300,9 +300,9 @@ void deleteFile(const char *filename, FILE *drive) {
 		p_error(false);
 		return;
 	}
-	metadataMemory[memorySlot].isFree = 1;
+	metadataMemory[memorySlot].isFree = true;
 	updateDriveMetadata(drive);
-	sector_init(metadataMemory[memorySlot].start_sector, metadataMemory[memorySlot].size, 0);
+	sector_init(metadataMemory[memorySlot].start_sector, metadataMemory[memorySlot].size, SEC_FREE);
 }
 void renameFile(const char *old_name, const char *new_name, FILE *drive) {
 	int memorySlot;
@@ -347,30 +347,24 @@ void readLine(char *buffer, const char *filename, const bool resetPos, FILE *dri
 unsigned char readChar (const char *filename, const int n, FILE *drive) {
 	if (filename && !isStringEmpty(filename))
 		 openFile (filename, drive);
-	fpos_t pos, newpos;
 	unsigned char buffer;
-	fgetpos(drive, &pos);
-	newpos = (long)pos + (long)n;
-	fsetpos(drive, &newpos);
+	fseek(drive, n, SEEK_CUR);
 	buffer = (unsigned char)fgetc(drive);
-	fsetpos(drive, &pos);
+	fseek(drive, -n - 1, SEEK_CUR);
 	return buffer;
 }
 void writeChar (const char *filename,const char c, const int n, FILE *drive) {
 	if (filename && !isStringEmpty(filename))
 		openFile (filename, drive);
-	fpos_t pos, newpos;
-	fgetpos(drive, &pos);
-	newpos = (long)pos + (long)n;
-	if (n > drivemetadata->sectorSize || newpos <= drivemetadata->sectorSize * 2) { //Os file and metadatasector are write protected
+	if (n > drivemetadata->sectorSize) { //Os file and metadatasector are write protected
 		error_code = WRITE_FAILED_ACCESS_DENIED;
-		sprintf(error_buff, "%l", newpos);
+		sprintf(error_buff, "%l", n);
 		p_error(true);
 		return;
 	}
-	fsetpos(drive, &newpos);
+	fseek(drive, n, SEEK_CUR);
 	fputc((int)c, drive);
-	fsetpos(drive, &pos);
+	fseek(drive, -n - 1, SEEK_CUR);
 }
 /***********************************************
 * Func: metadataMemoryInit                     *
@@ -391,8 +385,8 @@ void metadataMemoryInit() {
 *                                                        *
 * Return: disk_info struct, detailes of the input drive  *
 *********************************************************/
-disk_info get_disk_info(const char *filename) {
-	disk_info ret;
+disk_info_t get_disk_info(const char *filename) {
+	disk_info_t ret;
 	FILE *f;
 	long i_buff = 0;
 	if (!(f = fopen(filename, "r"))) {
@@ -422,6 +416,13 @@ disk_info get_disk_info(const char *filename) {
 	fclose(f);
 	return ret;
 }
+/*********************************************************
+* Func: getFileInfo                                      *
+* Params: const char *filename: Drive's filename         *
+*                                                        *
+* Return: none                                           *
+* Desc: Used for the DIR command                         *
+*********************************************************/
 void getFileInfo(long long int *dest, const int n, const int maxlen) {
 	char buff[FILENAME_SIZE];
 	strncpy(buff, (metadataMemory + n)->filename, FILENAME_SIZE); //Altering prevention

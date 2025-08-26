@@ -132,9 +132,9 @@ unsigned long hashStr(char *str) {
 *                                                               *
 * Return: none                                                  *
 ****************************************************************/
-void hashRegisters(const int n, char buffer[SYNTAX_LIMIT][STRING_SIZE], registerP *registers) {
+void hashRegisters(const int n, char buffer[SYNTAX_LIMIT][STRING_SIZE], registerP_t *registers) {
 	char *res;
-	registerP tmp;
+	registerP_t tmp;
 	char buff_i[STRING_SIZE];
 	for (int i = 0; i < n; i++) {
 		strcpy(buff_i, buffer[i]); //Backup original string, strtok tends to fuck the original one up...
@@ -280,6 +280,15 @@ int getchar_fixed() {
 		return 0;
 	return c;
 }
+/******************************************************************
+* Func: intPtoString                                              *
+* Params: char *char_p: Character array (dest or src)             *
+*         long long *int_p: Integer array (dest or src)           *
+*         const bool direction: (INTP_TO_CHARP, CHARP_TO_INTP)    *
+*         const int max_char                                      *
+*                                                                 *
+*         Return: none                                            *
+******************************************************************/
 void intPtoString(char *char_p, long long int *int_p, const bool direction, const int max_char) {
 	long long int *i;
 	char *c;
@@ -295,5 +304,14 @@ void intPtoString(char *char_p, long long int *int_p, const bool direction, cons
 			int_p[c - char_p] = 0;
 			break;
 	}
-
+}
+/********************************************
+* Func: pause_program                       *
+* Params: none                              *
+*                                           *
+* Return: none                              *
+********************************************/
+void pause_program(){
+	while (true)
+		Sleep(WATCH_FOR_POWEROFF_WAIT_INTERVAL);
 }
