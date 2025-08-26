@@ -12,7 +12,7 @@ The project mainly consists of two seperate parts, which comminucate using windo
 #### CPU
 - Has the registers IR, PC, SP, AC, MAR, MDR, U, V, X, Y, Z
 - Reads instructions from systemMemory (Defined in Memory.c)
-- Parses each instruction using a hashMap (Defined in headers.h)
+- Parses each instruction using a hashing function (Defined in headers.h)
 - Handles the shared memory (hMapFile)
 - Follows a three stepped procedure: FETCH, DECODE, EXECUTE
 - Will wait a pre-defined amount of time on each step, simulating a clock frequency.
@@ -34,8 +34,8 @@ typedef struct userRAM {
 } userRAM;
 ```
 #### Disk Drive
-- Binary Data is store on a .bin file, which will be out computer's virtual disk drive
-- An extremely simple "filesystem" is used to handle reading and writing:
+- Binary Data is stored on a .bin file, which will be our computer's virtual disk drive
+- An extremely simple "filesystem" is implemented to handle reading and writing:
 	- The .bin file is divided into a given number of sectors
 	- Each sector contains one file
 	- The first sector is reserved for metadata
@@ -48,22 +48,22 @@ typedef struct userRAM {
 			bool isFree;
 		} metadata;
 		```
-	- Drive metadata:
+	- Drive metadata_t:
 		```c
 		typedef struct disk_info {
 			long totalSize;
 			long sectorSize;
 			long disk_info_len;
-		} disk_info;
+		} disk_info_t;
 		```
-- Drive metadata is stored in a seperately allocated memory, and syncs with the .bin file on shutdown.
+- Drive metadata is stored in a seperately allocated memory, synced with the .bin file on shutdown.
 #### Motherboard (BIOS, POST, etc)
 - Lists .bin files present in the running directory on startup
 - Selects the first available drive from a config file (.bootdev)
 - Timezones can be configured from the SETUP menu, and used in the machine code (GETTIMEZONE)
 - Will wait for monitor's turn on command
 ### Instructions
-- Below is a table of each instruction's syntax, and paramters.
+- Below is a table of each instruction's syntax, and parameters.
 - R1, R2, R3 are given registers (X, Y, Z, MAR, MDR, etc)
 
 | Command      | Parameter 1       |  Parameter 2      | Parameter 3       | Description                                                |
