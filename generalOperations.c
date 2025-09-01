@@ -200,7 +200,7 @@ char *humanSize(long long int bytes) {
 * Return: Number of read lines                                          *
 * Desc: Reads a file line by line and outputs them to a given buffer    *
 ************************************************************************/
-int fgets_lineByLine(FILE *f, char buffer[][STRING_SIZE]) {
+int fgets_lineByLine(FILE *f, char buffer [][STRING_SIZE]) {
 	fpos_t f_zero = 0;
 	int i;
 	fsetpos(f, &f_zero);
@@ -219,7 +219,7 @@ int fgets_lineByLine(FILE *f, char buffer[][STRING_SIZE]) {
 * Return: None                                                          *
 * Desc: Same as previous one, but fputs                                 *
 ************************************************************************/
-void fputs_lineByLine(FILE *f, const char buffer[][STRING_SIZE], const int cnt) {
+void fputs_lineByLine(FILE *f, const char buffer [][STRING_SIZE], const int cnt) {
 	fpos_t f_zero = 0;
 	int i;
 	fsetpos(f, &f_zero);

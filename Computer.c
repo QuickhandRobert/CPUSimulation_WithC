@@ -28,7 +28,7 @@ time_zone_t *timezones;
 * Return: Number of found drives                                           *
 *                                                                          *
 ***************************************************************************/
-int list_drives(const bool print_flag, char drives[][STRING_SIZE]) {
+static int list_drives(const bool print_flag, char drives[][STRING_SIZE]) {
 	DIR *cur_dir;
 	struct dirent *filedata;
 	int i = 0;
@@ -60,7 +60,7 @@ int list_drives(const bool print_flag, char drives[][STRING_SIZE]) {
 * Return: first priority boot drive (which exists)   *
 *                                                    *
 *****************************************************/
-char *selectBootDrive() {
+static char *selectBootDrive() {
 	static char boot_drive[STRING_SIZE];
 	char buff[STRING_SIZE];
 	rewind(bootdev);
@@ -83,7 +83,7 @@ char *selectBootDrive() {
 * Return: none                                                           *
 * Desc: Updates .bootdev, adds newly found drives to the end of bootdev  *
 *************************************************************************/
-void update_bootdev() {
+static void update_bootdev() {
 	char drives_prim[MAX_DRIVES][STRING_SIZE], drives_bootdev[MAX_DRIVES][STRING_SIZE];
 	int bootdev_cnt, prim_cnt;
 	//Update current timezone into .bootdev
@@ -101,7 +101,6 @@ void update_bootdev() {
 			if (strcmp(drives_prim[i], drives_bootdev[j]) == 0) {
 				break;
 			}
-
 		}
 	}
 }
@@ -114,7 +113,7 @@ void update_bootdev() {
 * Return: none                                                                    *
 * Desc: The function responsible for printing the drives in the boot menu setup   *
 **********************************************************************************/
-void setup_print_drives(const int cur, const int cnt, const char drives[][STRING_SIZE]) {
+static void setup_print_drives(const int cur, const int cnt, const char drives[][STRING_SIZE]) {
 	for (int i = 0; i < cnt; i++) {
 		if (i == cur)
 			printf("• ");
@@ -131,7 +130,7 @@ void setup_print_drives(const int cur, const int cnt, const char drives[][STRING
 * Return: none                                                      *
 * Desc: Prints the main setup menu, and handles key inputs for it   *
 ********************************************************************/
-void boot_setup(char drives_bootdev[][STRING_SIZE], const int drives_cnt) {
+static void boot_setup(char drives_bootdev[][STRING_SIZE], const int drives_cnt) {
 	system("cls");
 	update_bootdev();
 	int cur = 0;
@@ -200,7 +199,7 @@ time_t get_currentTimeZone_offset () {
 * Return: none                              *
 * Desc: timezones array initilization       *
 ********************************************/
-void timezones_init() {
+static void timezones_init() {
 	static time_zone_t init_timezones[] = {
 		{-43200, "UTC-12:00 (Baker Island, Howland Island)"},
 		{-39600, "UTC-11:00 (Niue, American Samoa)"},
@@ -251,10 +250,10 @@ void timezones_init() {
 * Return: none                              *
 * Desc: Updates the config file             *
 ********************************************/
-void update_timezone() {
-	rewind(timzone_cfg);
+static void update_timezone() {
+	rewind(timezone_cfg);
 	fprintf(timezone_cfg, "%d\n", current_timezone);
-	rewind(timzone_cfg);
+	rewind(timezone_cfg);
 }
 /********************************************
 * Func: setup_print_timezones               *
@@ -263,7 +262,7 @@ void update_timezone() {
 * Return: none                              *
 * Desc: Timezones setup helper function     *
 ********************************************/
-void setup_print_timezones() {
+static void setup_print_timezones() {
 	for (int i = 0; i < NUMBER_OF_TIMEZONES; i++) {
 		if (i == current_timezone)
 			printf("[ • ] %s\n", (timezones + i) -> desc);
@@ -277,7 +276,7 @@ void setup_print_timezones() {
 *                                           *
 * Return: none                              *
 ********************************************/
-void timezone_setup() {
+static void timezone_setup() {
 	system("cls");
 	update_timezone();
 	while (true) {
@@ -309,7 +308,7 @@ void timezone_setup() {
 * Return: none                      *
 * Desc: Initliazes stuff            *
 ************************************/
-void systm_boot() {
+static void systm_boot() {
 	char buff[STRING_SIZE];
 	system("cls");
 	sprintf(buff, "%s/%s", DRIVES_DIR, boot_drive);
@@ -397,7 +396,7 @@ void system_restart() {
 * Return: none                                                     *
 * Desc: boot device selector menu (without changing any bootdevs)   *
 *******************************************************************/
-void boot_menu() {
+static void boot_menu() {
 	system("cls");
 	printf("Storage Devices:\n");
 	char buffer[STRING_SIZE];
@@ -425,7 +424,7 @@ void boot_menu() {
 * Return: none                                                     *
 * Desc: Setup menu handler                                         *
 *******************************************************************/
-void setup_menu() {
+static void setup_menu() {
 	int drives_cnt;
 	char drives_bootdev[MAX_DRIVES][STRING_SIZE];
 	drives_cnt = fgets_lineByLine(bootdev, drives_bootdev);
@@ -496,7 +495,7 @@ void print_dots(const int n, const long wait_duration) {
 * Return: none                                                                                               *
 * Desc: SYSTEM POWER-ON SELF TEST, tests stuff to see if everything checks out, if yes start up the system.  *
 *************************************************************************************************************/
-void bios_post() {
+static void bios_post() {
 	system("chcp 65001"); // Set terminal locale to unicode (special characters support)
 	int i = 0;
 	float freq = 1000 / CLOCK_PULSE;
@@ -591,7 +590,7 @@ void bios_post() {
 * Return: none                       *
 * Desc: starts the monitor process   *
 *************************************/
-void monitor_init(bool restart_flag) {
+static void monitor_init(bool restart_flag) {
 	if (!restart_flag) {
 		STARTUPINFO s_info;
 		PROCESS_INFORMATION p_info;

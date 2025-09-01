@@ -50,7 +50,7 @@ clock_t start; //Used for clock pulse evaluations..
 //Error handler
 extern enum errors_def error_code;
 extern char error_buff[STRING_SIZE];
-//Debugging
+//System Log
 FILE *debugOutput;
 /**********************************************************
 * Func: shared_memory_handler                             *
@@ -99,7 +99,7 @@ void shared_memory_handler(const int operationType, const bool restart_flag) {
 ********************************************/
 void wait_for_power(bool flag) {
 	while (!flag && !CPU_Registers->power_state)
-		Sleep(WATCH_FOR_POWEROFF_WAIT_INTERVAL);
+		Sleep(WATCH_FOR_POWEROFF_WAIT_INTERVAL); //Prevent flooding
 }
 /******************************************************
 * Func: watch_for_poweroff                            *
@@ -140,7 +140,7 @@ bool isSystemOn() {
 * Return: none                              *
 * Desc: Emualates a clock cycle             *
 ********************************************/
-void clock_pulse() {
+static inline void clock_pulse() {
 	clock_t current, elapsed = 0, on, off;
 	if (CPU_Registers->CPU_Clock < MINIMUM_CLOCK_DURATION) {
 		error_code = CPU_LIMIT_EXCEEDED;
@@ -183,7 +183,7 @@ void clock_pulse() {
 * Desc: Accounts for the time spent waiting for user input,      *
 *       Required for the clock_pulse logic to work correctly.    *
 *****************************************************************/
-void input_delay_handler() {
+static void input_delay_handler() {
 	static bool flag = false;
 	static clock_t start_t;
 	flag = !flag;
@@ -199,7 +199,7 @@ void input_delay_handler() {
 * Return: Hashed value of the read inst     *
 * Desc: Emualates CPU fetch                 *
 ********************************************/
-unsigned long fetch() {
+static unsigned long fetch() {
 	CPU_Registers->step = FETCH; //Set the current status of monitor to FETCH
 	for (int i = 0; i < SYNTAX_LIMIT; i++) {
 		readFromMemory(M_STR, SYSTEM_RAM, CPU_Registers->R_PC, i, CPU_Registers->R_IR[i]); //Load each parameter of the current instuction into IR
@@ -273,7 +273,7 @@ void makeRegisterPointers(const int n, registerP_t *registers) {
 * Return: none                             *
 * Desc: Defines a new error definition     *
 *******************************************/
-void error_def() {
+static void error_def() {
 	char buffer[STRING_SIZE];
 	char *res;
 	int index;
@@ -294,7 +294,7 @@ void error_def() {
 * Return: none                             *
 * Desc: Defines a new constant string      *
 *******************************************/
-void const_def() {
+static void const_def() {
 	char buffer[STRING_SIZE];
 	char *res;
 	int index;
@@ -315,7 +315,7 @@ void const_def() {
 * Return: none                                             *
 * Desc: Prints an error definition with # as variables     *
 ***********************************************************/
-void print_error(registerP_t *registers) {
+static void print_error(registerP_t *registers) {
 	char buffer[STRING_SIZE], buffer0[STRING_SIZE];
 	char *res;
 	int index, len, i, j;
@@ -370,7 +370,7 @@ void loadToMemory(FILE *drive, char *filename) {
 	programsTop++;
 	pc_max += i;
 }
-void unloadFromMemory() {
+static void unloadFromMemory() {
 	pc_max = (programs + programsTop) -> start;
 	programsTop--;
 }
@@ -382,7 +382,7 @@ void unloadFromMemory() {
 * Desc: Searches SYSTEM_RAM for procedure definitions  *
 *       and initializes them for future use            *
 *******************************************************/
-void proc_init() {
+static void proc_init() {
 	unsigned long a;
 	char buffer[LINE_BUFFER_SIZE];
 	enum operations_hashed operationsHashed;
@@ -410,7 +410,7 @@ void proc_init() {
 * Desc: Searches SYSTEM_RAM for goto definitions       *
 *       and initializes them for future use            *
 *******************************************************/
-void goto_point_init() {
+static void goto_point_init() {
 	int i, j;
 	char buffer[LINE_BUFFER_SIZE];
 	for (i = (programs + programsTop)->start, j = 0; i < (programs + programsTop + 1)->start; i++) {
@@ -429,7 +429,7 @@ void goto_point_init() {
 *                                                      *
 * Return: PC value pointing to the start of the Proc   *
 *******************************************************/
-int findProc(const char *name) {
+static int findProc(const char *name) {
 	int len = strlen(name);
 	char buffer[STRING_SIZE];
 	strncpy(buffer, name, STRING_SIZE);
@@ -445,7 +445,7 @@ int findProc(const char *name) {
 *                                                      *
 * Return: PC value pointing to given goto point        *
 *******************************************************/
-int findGotoPoint(const char *name) {
+static int findGotoPoint(const char *name) {
 	for (int i = 0; i < MAX_GOTO_POINTS; i++)
 		if (strcmp(goto_point[programsTop - 1][i].name, name) == 0)
 			return goto_point[programsTop - 1][i].pos;
@@ -460,7 +460,7 @@ int findGotoPoint(const char *name) {
 * Return: LINE_COMMENT, LINE_OK or PROGRAM_ENDED                                      *
 * Desc: Tokenizes a read buffer into sectoins, and writes them to the SYSTEM_RAM      *
 **************************************************************************************/
-int decodeInstruction(char *buffer, const int index, FILE *drive) {
+static int decodeInstruction(char *buffer, const int index, FILE *drive) {
 	unsigned long hashed = 0;
 	char *res, *c;
 	int j;
@@ -504,8 +504,8 @@ int decodeInstruction(char *buffer, const int index, FILE *drive) {
 * Desc: Used for CRUN & RUN instructions     *
 *       Shifts the IR Back or forward        *
 *********************************************/
-void shift_IR(bool i) {
-	switch(i) {
+static void shift_IR(bool dir) {
+	switch(dir) {
 		case BACK:
 			for (int j = 1; j < SYNTAX_LIMIT; j++)
 				strncpy(CPU_Registers->R_IR[j - 1], (CPU_Registers->R_IR)[j], STRING_SIZE);
@@ -523,7 +523,7 @@ void shift_IR(bool i) {
 * Return: none                                              *
 * Desc: Initlializations done before each inst's execution  *
 ************************************************************/
-void inst_init(char *inst_name, int params_cnt) {
+static inline void inst_init(const char *inst_name, const int params_cnt) {
 	strcpy(CPU_Registers->R_IR_INST.inst_name, inst_name);
 	CPU_Registers->R_IR_INST.inst_params = params_cnt;
 	clock_pulse();
