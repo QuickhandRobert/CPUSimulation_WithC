@@ -31,6 +31,7 @@
 #define POWER_OFF_ICON_PATH "power_off.png"
 #define POWER_ON_ICON_PATH "power_on.png"
 #define RESTART_ICON_PATH "restart.png"
+#define HIBERNATE_ICON_PATH "hibernate.png"
 #define CIRCLES_ACTIVE_PATH "circles/circle_active_%d.png"
 #define CIRCLES_PATH "circles/circle_%d.png"
 #define SYNTAX_LIMIT 8
@@ -86,6 +87,7 @@ typedef struct CPU_registers {
 	bool cp_differ_toggle;
 	int CPU_Clock;
 	volatile bool power_state;
+	volatile bool hibernate_trigger;
 	volatile bool restart_trigger;
 	long p_id;
 	volatile bool p_id_trigger;
@@ -301,7 +303,7 @@ GLuint texture_init(stbi_uc *data, int width, int height) {
 ****************************************************/
 struct nk_image img_load(const char *img_name) {
 	int width, height, chs;
-	stbi_uc *data = stbi_load(img_name, &width, &height, &chs, 4); //Load image data
+	stbi_uc *data = stbi_load(img_name, &width, &height, &chs, 0); //Load image data
 	GLuint texture;
 	if (data)
 		texture = texture_init(data, width, height); //Upload texture data to GPU
@@ -326,14 +328,14 @@ void gui_shutdown(struct nk_glfw *glfw, GLFWwindow *main_win, HANDLE hParent) {
 	CloseHandle(hMapFile);
 	CloseHandle(hParent);
 }
-char *humanize_freq(char *buff, int freq) {
-	char *suffix[] = {"Hz", "Khz", "Mhz"};
+char *humanize_freq(char *buff, float freq) {
+	char *suffix[] = {"Hz", "kHz", "MHz"};
 	char length = sizeof(suffix) / sizeof(suffix[0]);
 	int i = 0;
-	double dblFreq = freq;
-	if (freq > 1000) {
-		for (i = 0; (freq / 1000) > 0 && i < length - 1; i++, freq /= 1000) {
-			dblFreq = freq / 1000;
+	float dblFreq = freq;
+	if (freq >= 1000.0f) {
+		for (i = 0; (freq >= 1000.0f) && i < length - 1; i++, freq /= 1000.0f) {
+			dblFreq = freq / 1000.0f;
 		}
 	}
 	sprintf(buff, "%.1f %s", dblFreq, suffix[i]);
@@ -347,7 +349,7 @@ int main() {
 	//---------------------------------
 	//Clock Frequency and Duration Stuff
 	float clock_freq = 1000 / (float)(CPU_Registers->CPU_Clock);
-	const float clock_freq_unit = clock_freq;
+	float clock_freq_unit = clock_freq;
 	//---------------------------------
 	//Register Strings
 	char S_PC[REG_CHARACTER_LIMIT] = {'\0'};
@@ -360,15 +362,16 @@ int main() {
 	//---------------------------------
 	//Character Buffers
 	char reg_id[STRING_SIZE] = "Register\'s Name";
+	char cp_temp_buffer[STRING_SIZE] = "Clock Value (In Hz)";
 	char temp_buffer[STRING_SIZE];
-	char *watchMenuToggleBuffer[] = {"Open Debug Menu", "Close Debug Menu"};
+	char *watchMenuToggleBuffer[] = {"Open Menu", "Close Menu"};
 	//---------------------------------
 	//State indicators Buttons
 	struct nk_style_button state_indicators[3]; // 0:Fetch, 1:Decode, 2:Execute
 	int knobState = 0;
 	//---------------------------------
 	//Additional window triggers
-	bool watchMenu = false, addMenu = false, typeMenu = false, copiedAlert = false;
+	bool watchMenu = false, addMenu = false, typeMenu = false, copiedAlert = false, changeCPMenu = false;
 	int successErrorWindow = REG_DISABLED;
 	//---------------------------------
 	//Glfw window
@@ -377,7 +380,7 @@ int main() {
 	struct nk_context *ctx; //Nuklear context
 	//---------------------------------
 	//Images
-	struct nk_image power[2], restart, circle[10], circle_active[10];
+	struct nk_image power[2], restart, hibernate, circle[10], circle_active[10];
 	//---------------------------------
 	//Styles
 	struct nk_style_button status_active;
@@ -427,6 +430,7 @@ int main() {
 	power[0] = img_load(POWER_OFF_ICON_PATH);
 	power[1] = img_load(POWER_ON_ICON_PATH);
 	restart = img_load(RESTART_ICON_PATH);
+	hibernate = img_load(HIBERNATE_ICON_PATH);
 	for (int k = 0; k < 10; k++) {
 		char buff[STRING_SIZE];
 		sprintf(buff, CIRCLES_PATH, k);
@@ -528,7 +532,7 @@ int main() {
 				CPU_Registers->p_id_trigger = false;
 				hParentProcess = OpenProcess(SYNCHRONIZE, false, CPU_Registers->p_id);
 				p_reset_timer_start = 0;
-			}	
+			}
 		}
 		indicators_eval(state_indicators, status_deactive, status_active); //Evaluate status indicators
 		nk_glfw3_new_frame(&glfw); //Render a new frame on each iteration of the loop
@@ -571,6 +575,10 @@ int main() {
 			nk_layout_row_push(ctx, 0.3f);
 			nk_label(ctx, "", NK_TEXT_LEFT);
 			nk_layout_row_push(ctx, 0.4f);
+			if (nk_input_is_mouse_click_down_in_rect(&ctx->input, NK_BUTTON_RIGHT, knob_image_bounds, true))
+				changeCPMenu = true;
+			if (nk_input_is_mouse_hovering_rect(&ctx->input, knob_image_bounds) && !changeCPMenu) //Don't Display Tooltip If Menu is Open
+				nk_tooltip(ctx, "Right Click to Change");
 			if (nk_knob_int(ctx, 0, &knobState, 9, 1, NK_DOWN, 60)) { //Reevaluate frequency values if the knob is touched
 				CPU_Registers->cp_differ_toggle = true;
 				clock_freq = clock_freq_unit * (knobState + 1);
@@ -607,10 +615,10 @@ int main() {
 			//---------------------------------
 			//Sixth Row: Debug menu toggle & power button
 			nk_layout_row_dynamic(ctx, 5, 1); //Placeholder
-			nk_layout_row_begin(ctx, NK_DYNAMIC, 60, 4);
+			nk_layout_row_begin(ctx, NK_DYNAMIC, 56.92f, 4);
 			nk_layout_row_push(ctx, 0.133f);
 			nk_label(ctx, "", NK_TEXT_LEFT);
-			nk_layout_row_push(ctx, 0.5f);
+			nk_layout_row_push(ctx, 0.4f);
 			if (nk_button_label(ctx, watchMenuToggleBuffer[watchMenu])) {
 				watchMenu = !watchMenu; //Toggle menu if pressed
 				if (watchMenu) //Change the window size accordingly
@@ -619,10 +627,21 @@ int main() {
 					glfwSetWindowSize(main_win, WINDOW_WIDTH, WINDOW_HEIGHT);
 			}
 			//Power Button
-			nk_layout_row_push(ctx, 0.117f);
+			nk_layout_row_push(ctx, 0.111f);
+			if (nk_widget_is_hovered(ctx))
+				nk_tooltip(ctx, "Shutdown");
 			if (nk_button_image_styled(ctx, &no_border, power[CPU_Registers->power_state]))
 				CPU_Registers->power_state = !CPU_Registers->power_state;
-			nk_layout_row_push(ctx, 0.117f);
+			//Hibernate Button
+			nk_layout_row_push(ctx, 0.111f);
+			if (nk_widget_is_hovered(ctx))
+				nk_tooltip(ctx, "Hibernate");
+			if (nk_button_image_styled(ctx, &no_border, hibernate))
+				CPU_Registers->hibernate_trigger = true;
+			//Restart Button
+			nk_layout_row_push(ctx, 0.111f);
+			if (nk_widget_is_hovered(ctx))
+				nk_tooltip(ctx, "Restart");
 			if (nk_button_image_styled(ctx, &no_border, restart) && CPU_Registers->power_state) {
 				knobState = 0;
 				clock_freq = clock_freq_unit * (knobState + 1);
@@ -669,7 +688,6 @@ int main() {
 		}
 		if (addMenu && watchMenu) { //Add watch
 			int selectedViewType;
-
 			const char *viewTypes[] = {"Decimal", "Hexadecimal", "Character"};
 			if (nk_begin(ctx, "Add Watch", nk_rect(600, 350, 400, 250), NK_FLAGS_ALERT_WINDOW)) { //Third window: add watch
 				nk_layout_row_dynamic(ctx, 37.5f, 1);
@@ -721,6 +739,27 @@ int main() {
 				if (nk_button_label(ctx, "OK")) {
 					copiedAlert = false;
 				}
+				nk_end(ctx);
+			}
+		}
+		if (changeCPMenu) {
+			if (nk_begin(ctx, "Change Clock", nk_rect(50, 350, 300, 160), NK_FLAGS_ALERT_WINDOW)) {
+				nk_layout_row_dynamic(ctx, 37.5f, 1);
+				nk_edit_string_zero_terminated(ctx, NK_EDIT_SIMPLE, cp_temp_buffer, STRING_SIZE, nk_filter_default); //Textbox
+				nk_layout_row_dynamic(ctx, 2, 1);
+				nk_layout_row_dynamic(ctx, 50, 2);
+				if (nk_button_label(ctx, "Submit")) {
+					CPU_Registers->cp_differ_toggle = true;
+					clock_freq = fabsf(atof(cp_temp_buffer));
+					clock_freq_unit = clock_freq;
+					knobState = 0;
+					CPU_Registers->CPU_Clock = 1000 / clock_freq;
+					humanize_freq(S_CPUClock, clock_freq);
+					changeCPMenu = false;
+					*cp_temp_buffer = '\0';
+				}
+				if (nk_button_label(ctx, "Cancel"))
+					changeCPMenu = false;
 				nk_end(ctx);
 			}
 		}

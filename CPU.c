@@ -115,6 +115,12 @@ void watch_for_poweroff() {
 			system_shutdown();
 			return;
 		}
+		if (CPU_Registers->hibernate_trigger) {
+			CPU_Registers->hibernate_trigger = false;
+			CPU_Registers->power_state = false;
+			system_hibernate();
+			return;
+		}
 		if (CPU_Registers->restart_trigger && CPU_Registers->power_state) { //System is on and a restart is requested, then...
 			CPU_Registers->restart_trigger = false;
 			system_restart();
@@ -361,7 +367,7 @@ void loadToMemory(FILE *drive, char *filename) {
 		readLine(buffer, NULL, 0, drive); //Read a line into buffer
 		j = decodeInstruction(buffer, i, drive); //Decodes & writes in into SYSTEM_RAM (+checks for comments)
 		//if a line is comment, decodeinstruction returns -1, and i decrements, else i increments..
-		i = j != PROGRAM_ENDED ? i += j : i;
+		i = j != PROGRAM_ENDED ? i + j : i;
 	}
 
 	(programs + programsTop + 1)->start = i;
@@ -529,6 +535,171 @@ static inline void inst_init(const char *inst_name, const int params_cnt) {
 	clock_pulse();
 	CPU_Registers->step = EXECUTE;
 }
+/************************************************************
+* Func: pgfile_write_registers                              *
+* Params: FILE *fp                                          *
+*                                                           *
+* Return: none                                              *
+* Desc: Writes necessary values from CPU_Registers into fp  *
+************************************************************/
+void pgfile_write_registers(FILE *fp) {
+	unsigned long inst_temp;
+	if ((inst_temp = readFromMemory(M_INT, SYSTEM_RAM, CPU_Registers->R_PC - 1, -1, NULL)) == OP_INPUT || inst_temp == OP_GETKEY)
+		(CPU_Registers->R_PC)--;
+	fwrite(&CPU_Registers->R_PC, sizeof(long long int), PAGED_REGISTERS_COUNT, fp); //PC to Z
+	fwrite(CPU_Registers->R_S, sizeof(long long int), REG_STRING_SIZE * 2, fp); //S and A
+	fwrite(CPU_Registers->CONSTSTR, sizeof(CPU_Registers->CONSTSTR), 1, fp);
+	fwrite(programs, sizeof(program_t), MAX_PROGRAMS, fp);
+	fwrite(errors, sizeof(errors), 1, fp);
+	fwrite(proc, sizeof(proc), 1, fp);
+	fwrite(goto_point, sizeof(goto_point), 1, fp);
+	fwrite(prochelper, sizeof(prochelper), 1, fp);
+	fwrite(proc_stack_top, sizeof(proc_stack_top), 1, fp);
+	fwrite(&programsTop, sizeof(programsTop), 1, fp);
+	fwrite(&pc_max, sizeof(pc_max), 1, fp);
+	return;
+}
+/************************************************************
+* Func: pgfile_write_registers                              *
+* Params: FILE *fp                                          *
+*                                                           *
+* Return: none                                              *
+* Desc: Loads values from fp into CPU_Registers             *
+************************************************************/
+void pgfile_load_registers(FILE *fp) {
+	fread(&CPU_Registers->R_PC, sizeof(long long int), PAGED_REGISTERS_COUNT, fp); //PC to Z
+	fread(CPU_Registers->R_S, sizeof(long long int), REG_STRING_SIZE * 2, fp); //S and A
+	fread(CPU_Registers->CONSTSTR, sizeof(CPU_Registers->CONSTSTR), 1, fp);
+	fread(programs, sizeof(program_t), MAX_PROGRAMS, fp);
+	fread(errors, sizeof(errors), 1, fp);
+	fread(proc, sizeof(proc), 1, fp);
+	fread(goto_point, sizeof(goto_point), 1, fp);
+	fread(prochelper, sizeof(prochelper), 1, fp);
+	fread(proc_stack_top, sizeof(proc_stack_top), 1, fp);
+	fread(&programsTop, sizeof(programsTop), 1, fp);
+	fread(&pc_max, sizeof(pc_max), 1, fp);
+}
+/************************************************************
+* Func: pgfile_write_console_buffer                         *
+* Params: FILE *fp                                          *
+*                                                           *
+* Return: COORD cursor_position                             *
+* Desc: Writes console buffer into fp                       *
+************************************************************/
+COORD pgfile_write_console_buffer(FILE *fp) { //TODO: Implement unix support, Uses Windows API currently
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	CHAR_INFO *buff = (CHAR_INFO *)malloc(csbi.dwSize.X * csbi.dwSize.Y * sizeof(CHAR_INFO));
+	COORD buff_size = csbi.dwSize;
+	COORD buff_coords = {0, 0};
+	SMALL_RECT read_region = {0, 0, csbi.dwSize.X - 1, csbi.dwSize.Y - 1};
+	ReadConsoleOutput(hConsole, buff, buff_size, buff_coords, &read_region);
+	fwrite(&buff_size, sizeof(COORD), 1, fp);
+	fwrite(&buff_coords, sizeof(COORD), 1, fp);
+	fwrite(&read_region, sizeof(SMALL_RECT), 1, fp);
+	fwrite(buff, sizeof(CHAR_INFO), csbi.dwSize.X * csbi.dwSize.Y, fp);
+	free(buff);
+	return csbi.dwCursorPosition;
+}
+/************************************************************
+* Func: pgfile_load_console_buffer                          *
+* Params: FILE *fp                                          *
+*                                                           *
+* Return: none                                              *
+* Desc: Loads console buffer & cursor position from fp      *
+************************************************************/
+void pgfile_load_console_buffer(FILE *fp){
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	COORD buff_size;
+	fread(&buff_size, sizeof(COORD), 1, fp);
+	COORD buff_coords;
+	fread(&buff_coords, sizeof(COORD), 1, fp);
+	SMALL_RECT read_region;
+	fread(&read_region, sizeof(SMALL_RECT), 1, fp);
+	CHAR_INFO *buff = (CHAR_INFO *)malloc(buff_size.X * buff_size.Y * sizeof(CHAR_INFO));
+	fread(buff, sizeof(CHAR_INFO), buff_size.X * buff_size.Y, fp);
+	COORD cursor_pos;
+	fread(&cursor_pos, sizeof(COORD), 1, fp);
+	WriteConsoleOutput(hConsole, buff, buff_size, buff_coords, &read_region);
+	SetConsoleCursorPosition(hConsole, cursor_pos);
+	free(buff);
+}
+/*************************
+* Func: pgfile_write     *
+* Params: none           *
+*                        *
+* Return: none           *
+*************************/
+void pgfile_write() {
+	DWORD f_attributes = 0;
+	FILE *fp = fopen(PAGEFILE_FILENAME,  "wb");
+	if (SET_FILE_HIDDEN_ATTRIBUTE){
+		f_attributes = GetFileAttributes(PAGEFILE_FILENAME);
+		f_attributes |= (FILE_ATTRIBUTE_HIDDEN);
+		SetFileAttributes(PAGEFILE_FILENAME, f_attributes);
+	}
+	size_t reg_start = (PAGEFILE_HEADER_PARAMS_COUNT * sizeof(size_t)), sys_mem_start, usr_mem_start, console_start, cursor_pos_start;
+	COORD cursor_pos;
+	fseek(fp, reg_start, SEEK_SET);
+	pgfile_write_registers(fp);
+	sys_mem_start = ftell(fp);
+	pgfile_memory_write(fp, SYSTEM_RAM);
+	usr_mem_start = ftell(fp);
+	pgfile_memory_write(fp, USER_RAM);
+	console_start = ftell(fp);
+	cursor_pos = pgfile_write_console_buffer(fp);
+	cursor_pos_start = ftell(fp);
+	fwrite(&cursor_pos, sizeof(COORD), 1, fp);
+	pgfile_write_drive_pos(fp);
+	rewind(fp);
+	fwrite(&reg_start, sizeof(size_t), 1, fp);
+	fwrite(&sys_mem_start, sizeof(size_t), 1, fp);
+	fwrite(&usr_mem_start, sizeof(size_t), 1, fp);
+	fwrite(&console_start, sizeof(size_t), 1, fp);
+	fwrite(&cursor_pos_start, sizeof(size_t), 1, fp);
+	fclose(fp);
+	return;
+}
+/*************************
+* Func: pgfile_load      *
+* Params: none           *
+*                        *
+* Return: none           *
+*************************/
+void pgfile_load() {
+	FILE *fp = fopen(PAGEFILE_FILENAME, "rb");
+	size_t reg_start, sys_mem_start, usr_mem_start, console_start, cursor_pos_start;
+	pgfile_header_init(&reg_start, &sys_mem_start, &usr_mem_start, &console_start, &cursor_pos_start, fp);
+	fseek(fp, SEEK_SET, reg_start);
+	pgfile_load_registers(fp);
+	fseek(fp, SEEK_SET, sys_mem_start);
+	pgfile_memory_load(fp, usr_mem_start, SYSTEM_RAM);
+	pgfile_memory_load(fp, console_start, USER_RAM);
+	pgfile_load_console_buffer(fp);
+	pgfile_load_drive_pos(fp);
+	fclose(fp);
+}
+/************************************************************
+* Func: pgfile_header_init                                  *
+* Params: size_t *reg_start                                 *
+*         size_t *sys_mem_start                             *
+*         size_t *usr_mem_start                             *  
+*         size_t *console_start                             *
+*         size_t *cursor_pos_start                          *
+*         FILE *fp                                          *
+*                                                           *
+* Return: none                                              *
+* Desc: Loads header values from fp                         *
+************************************************************/
+void pgfile_header_init(size_t *reg_start, size_t *sys_mem_start, size_t *usr_mem_start, size_t *console_start, size_t *cursor_pos_start, FILE *fp) {
+	fread(reg_start, sizeof(size_t), 1, fp);
+	fread(sys_mem_start, sizeof(size_t), 1, fp);
+	fread(usr_mem_start, sizeof(size_t), 1, fp);
+	fread(console_start, sizeof(size_t), 1, fp);
+	fread(cursor_pos_start, sizeof(size_t), 1, fp);
+	return;
+}
 /*****************************************************************
 * Func: decode_execute                                           *
 * Params: unsigned long instruction: Hashed value                *
@@ -665,9 +836,9 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			makeRegisterPointers(2, registers);
 			if (registers[1].p) {
 				intPtoString(buffer2, registers[1].p, INTP_TO_CHARP, STRING_SIZE);
-				*registers[0].p = fileSearch(buffer2) == FILE_FAILED ? false : true;
+				*registers[0].p = !(fileSearch(buffer2) == FILE_FAILED);
 			} else
-				*registers[0].p = fileSearch(CPU_Registers->R_IR[1]) == FILE_FAILED ? false : true;
+				*registers[0].p = !(fileSearch(CPU_Registers->R_IR[1]) == FILE_FAILED);
 			break;
 		case OP_FSIZE:
 			inst_init("FSIZE", 1);
@@ -734,8 +905,7 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			inst_init("COPY", 1);
 			hashRegisters(1, CPU_Registers->R_IR, registers);
 			makeRegisterPointers(1, registers);
-			copied_value = readFromMemory(M_INT, USER_RAM, *registers[0].p, S_NULL, NULL);
-			writeToMemory(M_INT, USER_RAM, CPU_Registers->R_MAR, S_NULL, copied_value, NULL);
+			writeToMemory(M_INT, USER_RAM, CPU_Registers->R_MAR, S_NULL, readFromMemory(M_INT, USER_RAM, *registers[0].p, S_NULL, NULL), NULL);
 			break;
 		case OP_FLUSH:
 			inst_init("FLUSH", 0);
@@ -808,13 +978,13 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			inst_init("SHIFTFORWARD", 3);
 			hashRegisters(3, CPU_Registers->R_IR, registers);
 			makeRegisterPointers(3, registers);
-			*registers[2].p = *registers[0].p >> *registers[1].p; // TODO: Functionize ts
+			F_SHIFTFORWARD(registers[0].p, registers[1].p, registers[2].p);
 			break;
 		case OP_SHIFTBACK:
 			inst_init("SHIFTBACK", 3);
 			hashRegisters(3, CPU_Registers->R_IR, registers);
 			makeRegisterPointers(3, registers);
-			*registers[2].p = *registers[0].p << *registers[1].p;
+			F_SHIFTBACK(registers[0].p, registers[1].p, registers[2].p);
 			break;
 		//----------------------------------
 		// IO
@@ -834,22 +1004,19 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 				hashRegisters(1, CPU_Registers->R_IR, registers);
 				makeRegisterPointers(1, registers);
 			}
-			switch(registers[0].type) {
-				case M_CONST: // TODO: decide whether we remove this or not
-					strcut(buffer2, *CPU_Registers->R_IR, 1, -1);
-					if (isdigit((int)*buffer2))
-						printf("%s", CPU_Registers->CONSTSTR[atoi(buffer2)]);
-					else {
-						strcut(buffer2, buffer2, 1, -1);
-						strcpy(buffer0[0], buffer2);
-						hashRegisters(1, buffer0, registers);
-						makeRegisterPointers(1, registers);
-						printf("%s", CPU_Registers->CONSTSTR[*registers[0].p]);
-					}
-					break;
-				default:
-					putchar(*registers[0].p);
-			}
+			if (registers[0].type == M_CONST) {
+				strcut(buffer2, *CPU_Registers->R_IR, 1, -1);
+				if (isdigit((int)*buffer2))
+					printf("%s", CPU_Registers->CONSTSTR[atoi(buffer2)]);
+				else {
+					strcut(buffer2, buffer2, 1, -1);
+					strcpy(buffer0[0], buffer2);
+					hashRegisters(1, buffer0, registers);
+					makeRegisterPointers(1, registers);
+					printf("%s", CPU_Registers->CONSTSTR[*registers[0].p]);
+				}
+			} else
+				putchar(*registers[0].p);
 			break;
 		case OP_GETKEY:
 			inst_init("GETKEY", 1);
@@ -861,7 +1028,7 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			break;
 		case OP_CLS:
 			inst_init("CLS", 0);
-			system("cls");
+			clear_screen();
 			break;
 		//----------------------------------
 		// Program logic
@@ -891,6 +1058,8 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 			system_shutdown();
 			break;
 		case OP_HIBERNATE:
+			inst_init("HIBERNATE", 0);
+			system_hibernate();
 			break;
 		//----------------------------------
 		// Time
@@ -1006,14 +1175,17 @@ void decode_execute(unsigned long instruction, FILE *drive) {
 	}
 	clock_pulse();
 }
-void runCPU(FILE *drive) {
+void runCPU(FILE *drive, bool hibernate_flag) {
 	start = clock(); //Set start time
-	CPU_Registers->R_PC = programs->start; //Set the PC value to the start of the currently running program...
+	if (!hibernate_flag)
+		CPU_Registers->R_PC = programs->start; //Set the PC value to the start of the currently running program...
 	//CPU Cycle
-	while(CPU_Registers->R_PC < pc_max && !CPU_Registers->restart_trigger && CPU_Registers->power_state) { //FETCH till the program ends...
-		decode_execute(fetch(), drive);
+	unsigned long inst = 0;
+	while (CPU_Registers->R_PC < pc_max && !CPU_Registers->restart_trigger && CPU_Registers->power_state) { //FETCH till the program ends...
+		inst = fetch();
+		decode_execute(inst, drive);
 	}
-	if (CPU_Registers->R_PC < pc_max)
+	if (CPU_Registers->R_PC < pc_max) //Wait for the monitor's side to load stuff
 		pause_program();
 }
 

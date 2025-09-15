@@ -23,7 +23,7 @@ OverrideOutputName=Computer Simulator.exe
 HostApplication=
 UseCustomMakefile=1
 CustomMakefile=Makefile.win
-CommandLine="Example File.e"
+CommandLine=
 Folders=
 IncludeVersionInfo=0
 SupportXPThemes=0
@@ -32,7 +32,7 @@ CompilerSettings=0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;1;0;0;0;0;0;0;0
 <<<<<<< HEAD
 UnitCount=7
 =======
-UnitCount=10
+UnitCount=11
 >>>>>>> 515e8e14852d0d898b6ed2690b7f048172fa7819
 
 [VersionInfo]
@@ -161,4 +161,14 @@ Link=0
 Priority=1000
 OverrideBuildCmd=0
 BuildCmd=$(CC) -c monitor.c -o monitor.o $(CFLAGS)
+
+[Unit11]
+FileName=drive_maker.c
+CompileCpp=0
+Folder=
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=$(CC) -c drive_maker.c -o drive_maker.o $(CFLAGS)
 

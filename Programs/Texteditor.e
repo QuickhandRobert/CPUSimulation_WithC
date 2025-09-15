@@ -74,7 +74,6 @@ PROC Txt_Exit_Save:
 REGSET Y 0 @Helper iterator
 REGSET V 0 @Logic
 REGCOPY S:157 MAR
-DEBUG
 :Write_To_File_Txt_Next_Char
 MEMLOAD
 WNC Y MDR
@@ -83,18 +82,20 @@ NOT V
 CRUN V RUNPROC Write_EOF
 CRUN V RUNPROC Quit_Txt
 INC Y
-INC MDR
+INC MAR
 GOTO Write_To_File_Txt_Next_Char
 ENDPROC
 @----------------------------------
 PROC Write_EOF:
-WNC Z S:105
-INC Z
-WNC Z S:106
-INC Z
-WNC Z S:107
-INC Z
-WNC Z S:100
+WNC Y S:100
+INC Y
+WNC Y S:105
+INC Y
+WNC Y S:106
+INC Y
+WNC Y S:107
+INC Y
+WNC Y S:100
 ENDPROC
 @----------------------------------
 PROC Get_Input_To_A0_An:
@@ -247,16 +248,20 @@ INC MDR
 MEMWRITE
 REGCOPY Z MAR
 INC Z @Add text len by 1
+LOWER Y U S:200
+CRUN S:200 GOTO Print_Characters_Skip_Shift @Did we add a character to end? if yes, s:200 is True, and skip shifting stuff
 :Shift_Next_Char
 COPY Y @Copy Y to MAR (From RAM)
-EQ Y U V
+HIGHER Y U V
+NOT V
 CRUN V GOTO Print_Characters
 DEC MAR
 DEC Y
 GOTO Shift_Next_Char
 :Print_Characters
-REGCOPY X MDR
 DEC MAR
+:Print_Characters_Skip_Shift
+REGCOPY X MDR
 MEMWRITE
 :Print_Next_Char
 EQ MAR Z V
@@ -279,6 +284,8 @@ REGCOPY A MAR
 MEMLOAD
 INC MDR
 MEMWRITE
+DEBUG
+CRUN S:200 ENDPROC @If the character was added to the end, no need to reset the cursor
 REGCOPY X MAR @Restore backuped value
 :Cursor_Back_Repeat
 OUTPUT S:152
@@ -322,7 +329,6 @@ PROC ERASE_CHARACTER:
 LOWER A S:156 V
 CRUN V HIGHER U S:157 Y
 CRUN V NOT Y
-CRVUN V CRUN Y REGSET V 1
 CRUN V CRUN Y ENDPROC
 REGCOPY A MAR
 DEC MAR
@@ -344,12 +350,14 @@ DEC U
 DEC Z @Decrement text len
 :Shift_Next_Char_Back
 COPY Y @Copy Y to MAR (From RAM)
-EQ Y Z V
+LOWER Y Z V
+NOT V
 CRUN V GOTO Print_Characters_Back
 INC MAR
 INC Y
 GOTO Shift_Next_Char_Back
 :Print_Characters_Back
+HIGHER Y Z S:200 @S:200 is true if the last character has been deleted
 CLS
 OUTPUT C52
 OUTPUT S:100
@@ -366,6 +374,7 @@ OUTPUT MDR
 INC MAR
 GOTO Print_Next_Char_Back
 :Reset_Cursor_Back
+CRUN S:200 ENDPROC @If the last character was the character that got deleted, no need to reset cursor back
 LOWER A S:160 V
 CRUN V REGCOPY A X @Backup A Value
 CRUN V RUNPROC SET_CURSOR_Y_Back

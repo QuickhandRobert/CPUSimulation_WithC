@@ -120,8 +120,6 @@ unsigned long hashStr(char *str) {
 	char *c;
 	for (c = str; *c != '\0'; c++)
 		hash = ((hash << 5) + hash) + *c;
-//	printf("----------------------------------\n");
-//	printf("%u\n", hash);
 	return hash;
 }
 /****************************************************************

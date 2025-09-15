@@ -263,12 +263,11 @@ static void update_timezone() {
 * Desc: Timezones setup helper function     *
 ********************************************/
 static void setup_print_timezones() {
-	for (int i = 0; i < NUMBER_OF_TIMEZONES; i++) {
-		if (i == current_timezone)
-			printf("[ • ] %s\n", (timezones + i) -> desc);
-		else
-			printf("[   ] %s\n", (timezones + i) -> desc);
-	}
+	char print_buffer[STRING_SIZE * NUMBER_OF_TIMEZONES];
+	size_t current_offset = 0;
+	for (int i = 0; i < NUMBER_OF_TIMEZONES; i++)
+		current_offset += snprintf(print_buffer + current_offset, STRING_SIZE, i == current_timezone ? "[ • ] %s\n" : "[   ] %s\n", (timezones + i) -> desc);
+	fputs(print_buffer, stdout);
 }
 /********************************************
 * Func: timezone_setup                      *
@@ -316,7 +315,7 @@ static void systm_boot() {
 	audio_init();
 	memoryInit(SYSTEM_RAM);
 	memoryInit(USER_RAM);
-    thread_handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)watch_for_poweroff, NULL, 0, &thread_id);
+	thread_handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)watch_for_poweroff, NULL, 0, &thread_id);
 }
 /************************************
 * Func: system_shutdown             *
@@ -326,6 +325,7 @@ static void systm_boot() {
 * Desc: Shutdowns stuff             *
 ************************************/
 void system_shutdown() {
+	remove(PAGEFILE_FILENAME);
 	system("cls");
 	printf("Shuting Down In 3...");
 	Sleep(1000);
@@ -346,8 +346,32 @@ void system_shutdown() {
 	printf("----------------------------------------\n");
 	shared_memory_handler(REG_UNINIT, false);
 	audio_shutdown();
+	ExitProcess(0);
+}
+void system_hibernate() {
+	remove(PAGEFILE_FILENAME);
+	pgfile_write();
+	system("cls");
+	printf("Hibernating In 3...");
+	Sleep(1000);
+	printf("2...");
+	Sleep(1000);
+	printf("1...\n");
+	printf("Paging Registers & Random Access Memory");
+	print_dots(3, 500);
+	printf(" Done\n");
+	printf("Unmounting Drive %s", boot_drive);
+	print_dots(3,500);
+	drive_uninit(drive);
+	printf(" Done\n");
+	printf("----------------------------------------\n");
+	printf("All Systems Terminated. Farewell!\n");
+	printf("----------------------------------------\n");
+	shared_memory_handler(REG_UNINIT, false);
+	audio_shutdown();
 	exit(0);
 }
+
 /************************************
 * Func: system_restart              *
 * Params: FILE *drive               *
@@ -497,7 +521,7 @@ void print_dots(const int n, const long wait_duration) {
 *************************************************************************************************************/
 static void bios_post() {
 	system("chcp 65001"); // Set terminal locale to unicode (special characters support)
-	int i = 0;
+	int i;
 	float freq = 1000 / CLOCK_PULSE;
 	char *humanized_size;
 	enum post_stat status;
@@ -537,6 +561,7 @@ static void bios_post() {
 		printf("Booting from: %s", boot_drive);
 		start = clock();
 		elapsed = 0;
+		i = 0;
 		status = BOOT_OK;
 		while (elapsed < POST_WAIT_DURATION) {
 			if (_kbhit()) {
@@ -594,7 +619,7 @@ static void monitor_init(bool restart_flag) {
 	if (!restart_flag) {
 		STARTUPINFO s_info;
 		PROCESS_INFORMATION p_info;
-		//Initialize to default values, because, we're dealing with the Windows API here, and nothing makes sense there
+		//Initialize to default values, because, we're dealing with the Windows API here, therefore nothing should make sense
 		memset(&s_info, 0, sizeof(s_info));
 		memset(&p_info, 0, sizeof(p_info));
 		s_info.cb = sizeof(s_info);
@@ -603,21 +628,41 @@ static void monitor_init(bool restart_flag) {
 		CloseHandle(p_info.hThread);
 	}
 }
+/***********************************
+* Func: pgfile_write_drive_pos     *
+* Params: FILE *fp                 *
+*                                  *
+* Return: none                     *
+***********************************/
+void pgfile_write_drive_pos(FILE *fp) {
+	fpos_t drive_pos;
+	fgetpos(drive, &drive_pos);
+	fwrite(&drive_pos, sizeof(fpos_t), 1, fp);
+	return;
+}
+/***********************************
+* Func: pgfile_load_drive_pos      *
+* Params: FILE *fp                 *
+*                                  *
+* Return: none                     *
+***********************************/
+void pgfile_load_drive_pos(FILE *fp) {
+	fpos_t drive_pos;
+	fread(&drive_pos, sizeof(size_t), 1, fp);
+	fsetpos(drive, &drive_pos);
+}
 int main(int argc, char *argv[]) {
 	bool restart_flag = (argc > 1) && (strcmp(argv[1], SYSTEM_RESTART_TRIGGER) == 0 || strcmp(argv[1], SYSTEM_NO_MONITOR) == 0);
+	bool hibernate_flag = (access(PAGEFILE_FILENAME, 0) != -1);
 	shared_memory_handler(REG_INIT, restart_flag);
 	monitor_init(restart_flag);
 	wait_for_power(restart_flag);
 	bios_post();
 	systm_boot();
-	loadToMemory(drive, "");
-//	writeToFile("This is A Test Message.\nused For Testing the Text Editor and the Encryption Service.\n Hope Nothing Breaks =(", "test.txt", drive);
-//	deleteFile("test_e.txt", drive);
-//	writeToFile("Farbod:6383257999\nFatemeh:6383366863\nHelia:7572787954113592\nEND\n", "accounts.db", drive);
-//	writeToFile("Line1\nLine2\nLine3\nLine4\nEND", "newtest.txt", drive);
-//	createFile("nokia.notes", drive);
-//	createFile("encrypt.e", drive);
-//	renameFile("test.txt", "newtest.txt", drive);
-	runCPU(drive);
+	if (hibernate_flag)
+		pgfile_load();
+	else
+		loadToMemory(drive, "");
+	runCPU(drive, hibernate_flag);
 
 }

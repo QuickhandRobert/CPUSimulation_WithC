@@ -43,6 +43,7 @@ REGSET S:116 210729011988 @time
 REGSET S:117 6954030892083 @start
 REGSET S:118 6385152708 @dir
 REGSET S:119 210711002436 @echo
+REGSET S:120 8246405298631896759 @Hibernate
 @----------------------------------
 @Help Menu Stuff : C5 -> C16
 CONST C5 "CLS         Clears the Screen"
@@ -57,7 +58,7 @@ CONST C13 "RM          Removes a given file"
 CONST C14 "RMDIR       Removes a given directory"
 CONST C15 "RENAME      Renames a file or directory"
 CONST C16 "SHUTDOWN    System shutdown"
-CONST C17 "SLEEP       Puts the system into sleep"
+CONST C17 "HIBERNATE   Puts the system into hibernate mode"
 CONST C18 "START       Starts a given program"
 CONST C19 "Invalid command!"
 @----------------------------------
@@ -379,6 +380,9 @@ CRUN U RUNPROC List_Files
 CRUN U ENDPROC
 EQ X S:119 U
 CRUN U RUNPROC Echo_Input
+CRUN U ENDPROC
+EQ X S:120 U
+CRUN U HIBERNATE
 CRUN U ENDPROC
 OUTPUT C19
 OUTPUT S:100

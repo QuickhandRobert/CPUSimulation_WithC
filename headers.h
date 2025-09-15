@@ -12,6 +12,7 @@
 #define DRIVES_DIR "./Drives"
 #define BOOTDEV_CFG_FILENAME ".bootdev"
 #define TIMEZONE_CFG_FILENAME ".timezone"
+#define PAGEFILE_FILENAME ".pgfile"
 #define SYSTEM_RESTART_TRIGGER "system_restart" //The command line attribute which the systems looks for to know if it has be restarted or a fresh boot
 #define SYSTEM_NO_MONITOR "--no-monitor"
 #define WATCH_FOR_POWEROFF_WAIT_INTERVAL 10 //How often should the system check for the power_state (changed by monitor.exe), in ms
@@ -23,6 +24,8 @@
 #define DOTS_MAX 64 //Used in print_dots(), sanity checks
 #define DOTS_DURATION_MAX 20000 //Used in print_dots(), sanity checks
 //Command parser configuations
+#define PAGEFILE_HEADER_PARAMS_COUNT 5
+#define PAGED_REGISTERS_COUNT 10
 #define MAX_PROGRAMS 16
 #define SYNTAX_LIMIT 8
 #define CONSTANT_STRINGS 128 //Number of max CONST definitions
@@ -45,7 +48,7 @@
 #define MEMORY_SIZE 8192
 //CPU Clock configurations
 #define MINIMUM_CLOCK_DURATION 0 //Used for error handling, prevents the system from running too fast
-#define CLOCK_PULSE 100
+#define CLOCK_PULSE 1
 #define CLOCK_PULSE_TOGGLE_RATIO 50 //What percentage of the clock pulse duration should the monitor's clockpulse indicator turn on?
 //Audio Stuff
 #define AUDIO_AMPLITUDE INT_MAX / 2
@@ -77,6 +80,13 @@
 #define SEC_FREE 0
 #define SEC_OCCUPIED 1
 //-------------------------------------------
+#ifdef _WIN32
+#define clear_screen() system("cls")
+#define SET_FILE_HIDDEN_ATTRIBUTE true
+#else
+#define clear_screen() system("clear")
+#define SET_FILE_HIDDEN_ATTRIBUTE false
+#endif
 #endif
 //Structs
 typedef struct metadata {
@@ -132,6 +142,7 @@ typedef struct CPU_registers {
 	bool cp_differ_toggle;
 	int CPU_Clock;
 	volatile bool power_state;
+	volatile bool hibernate_trigger;
 	volatile bool restart_trigger;
 	long p_id;
 	volatile bool p_id_trigger;
@@ -291,11 +302,14 @@ static void timezone_setup(void);
 static void system_boot(void);
 void system_shutdown(void);
 void system_restart(void);
+void system_hibernate(void);
 static void boot_menu(void);
 static void setup_menu(void);
 void print_dots(const int, const long);
 static void bios_post(void);
 static void monitor_init(bool);
+void pgfile_write_drive_pos(FILE *);
+void pgfile_load_drive_pos(FILE *);
 void shared_memory_handler(const int, const bool);
 void wait_for_power(bool);
 void watch_for_poweroff(void);
@@ -316,8 +330,14 @@ static int findGotoPoint(const char *);
 static int decodeInstruction(char *, const int, FILE *);
 static void shift_IR(bool);
 static inline void inst_init(const char *, const int);
+void pgfile_write_registers(FILE *);
+void pgfile_write(void);
+void pgfile_load_console_buffer(FILE *);
+void pgfile_header_init(size_t *, size_t *, size_t *, size_t *, size_t *, FILE *);
+void pgfile_load_registers(FILE *);
+void pgfile_load(void);
 void decode_execute(unsigned long, FILE *);
-void runCPU(FILE *);
+void runCPU(FILE *, bool);
 char *strtok_fixed(char *, const char *, const char);
 char *fgets_fixed(char *, int, FILE *, char, bool);
 char *strcut(char *, char *, const int, const int);
@@ -340,6 +360,8 @@ void flushMemoryAddress(const int, const int);
 void writeToMemory(const int, const int, const int, const int, const unsigned long, char *);
 unsigned long readFromMemory(const int, const int, const int, const int, char *);
 bool mem_isFree(const int, const int);
+void pgfile_memory_write(FILE *, const bool);
+void pgfile_memory_load(FILE *, const size_t, const bool);
 void F_OR(long long *, long long *, long long *);
 void F_AND(long long *, long long *, long long *);
 void F_NOT(long long *);

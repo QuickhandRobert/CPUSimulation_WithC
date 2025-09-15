@@ -3,9 +3,9 @@ CONST C50 "Enter the Filename to Open:"
 CONST C51 "Error: file doesn't exist"
 CONST C52 "Enter the Filename to write the Image Data to:"
 CONST C53 "Select One of the Following Effects"
-CONST C54 1-Grayscale
-CONST C56 2-Negative
-CONST C57 "3-Color Correction"
+CONST C54 "1. Grayscale"
+CONST C56 "2. Negative"
+CONST C57 "3. Color Correction"
 CONST C55 "Enter Effect's Index (1 ~ n):"
 CONST C58 "Select Color Channel (R - G - B):"
 CONST C59 "Enter Correction Values (-255 ~ 255):"
@@ -100,9 +100,9 @@ REGCOPY MDR PC
 ENDPROC
 PROC Image_Grayscale:
 REGSET U 0 @Iterator
-REGSET S:1 @R
-RESET S:2 @G
-REGSET S:3 @B
+REGSET S:1 0 @R
+REGSET S:2 0 @G
+REGSET S:3 0 @B
 REGCOPY S:151 MAR @Image data starting points (to RAM)
 RNC U S @Width
 INC U
@@ -322,7 +322,6 @@ BITAND S:1 S:152 S:1
 SHIFTFORWARD MDR S:153 S:2
 BITAND S:2 S:152 S:2
 BITAND MDR S:152 S:3
-WRITELOG
 WNC U S:1
 INC U
 WNC U S:2

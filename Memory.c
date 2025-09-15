@@ -80,8 +80,8 @@ void writeToMemory(const int dataType, const int memoryType, const int index0, c
 			else {
 				removeNewLine(str);
 				strcpy(systemMemory[index0].data[index1], str);
-				systemMemory[index0].isFree = false;
 			}
+			systemMemory[index0].isFree = false;
 			break;
 		case USER_RAM:
 			userMemory[index0].data = (int)number;
@@ -132,5 +132,57 @@ bool mem_isFree(const int memoryType, const int index) {
 			return userMemory[index].isFree;
 			break;
 	}
+}
+/***********************************
+* Func: pgfile_memory_write        *
+* Params: FILE *fp                 *
+*         const bool memoryType    *
+*                                  *
+* Return: none                     *
+***********************************/
+void pgfile_memory_write(FILE *fp, const bool memoryType) {
+	switch(memoryType) {
+		case SYSTEM_RAM:
+			for (int i = 0; i < MEMORY_SIZE; i++)
+				if (!systemMemory[i].isFree) {
+					fwrite(&i, sizeof(int), 1, fp);
+					fwrite((systemMemory + i), sizeof(systemRAM_t), 1, fp);
+				}
+			break;
+		case USER_RAM:
+			for (int i = 0; i < MEMORY_SIZE; i++)
+				if (!userMemory[i].isFree) {
+					fwrite(&i, sizeof(int), 1, fp);
+					fwrite((userMemory + i), sizeof(userRAM_t), 1, fp);
+				}
+			break;
+	}
+	return;
+}
+/***********************************
+* Func: pgfile_memory_load         *
+* Params: FILE *fp                 *
+*         const bool memoryType    *
+*         const size_t end         *
+*                                  *
+* Return: none                     *
+***********************************/
+void pgfile_memory_load(FILE *fp, const size_t end, const bool memoryType) {
+	int address;
+	switch(memoryType) {
+		case SYSTEM_RAM:
+			while(ftell(fp) < end) {
+				fread(&address, sizeof(int), 1, fp);
+				fread((systemMemory + address), sizeof(systemRAM_t), 1, fp);
+			}
+			break;
+		case USER_RAM:
+			while(ftell(fp) < end) {
+				fread(&address, sizeof(int), 1, fp);
+				fread((userMemory + address), sizeof(userRAM_t), 1, fp);
+			}
+		break;
+	}
+
 }
 
