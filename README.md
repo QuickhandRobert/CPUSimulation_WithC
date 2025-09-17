@@ -27,11 +27,11 @@ typedef struct systemRAM {
 	char data[SYNTAX_LIMIT][STRING_SIZE];
 	int type;
 	bool isFree;
-} systemRAM;
+} systemRAM_t;
 typedef struct userRAM {
 	int data;
 	bool isFree;
-} userRAM;
+} userRAM_t;
 ```
 #### Disk Drive
 - Binary Data is stored on a .bin file, which will be our computer's virtual disk drive
@@ -46,7 +46,7 @@ typedef struct userRAM {
 			int size;
 			long start_sector;
 			bool isFree;
-		} metadata;
+		} metadata_t;
 		```
 	- Drive metadata_t:
 		```c
