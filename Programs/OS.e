@@ -52,7 +52,7 @@ CONST C7 "TIME        Displays the current time"
 CONST C8 "DIR         List all files in the current directory"
 CONST C9 "ECHO        Displays a message"
 CONST C10 "HELP        Displays this menu"
-CONST C11 "MF          Creates a file with a given name"
+CONST C11 "MKF          Creates a file with a given name"
 CONST C12 "MD          Creates a directory with a given name"
 CONST C13 "RM          Removes a given file"
 CONST C14 "RMDIR       Removes a given directory"
@@ -199,7 +199,7 @@ CRUN V GOTO Number_To_String_Continue
 @Print in Reverse:
 :Print_In_Reverse_Continue
 DEC U
-ADD A:U S:104 A:U (@Convert to ASCII character)
+ADD A:U S:104 A:U @(Convert to ASCII character)
 OUTPUT A:U
 EQ U S:103 V
 NOT V

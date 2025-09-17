@@ -111,17 +111,17 @@ void wait_for_power(bool flag) {
 ******************************************************/
 void watch_for_poweroff() {
 	while (true) {
-		if (!CPU_Registers->power_state) {
+		if (CPU_Registers && !CPU_Registers->power_state) {
 			system_shutdown();
 			return;
 		}
-		if (CPU_Registers->hibernate_trigger) {
+		if (CPU_Registers && CPU_Registers->hibernate_trigger) {
 			CPU_Registers->hibernate_trigger = false;
 			CPU_Registers->power_state = false;
 			system_hibernate();
 			return;
 		}
-		if (CPU_Registers->restart_trigger && CPU_Registers->power_state) { //System is on and a restart is requested, then...
+		if (CPU_Registers && CPU_Registers->restart_trigger && CPU_Registers->power_state) { //System is on and a restart is requested, then...
 			CPU_Registers->restart_trigger = false;
 			system_restart();
 			return;
@@ -1182,8 +1182,7 @@ void runCPU(FILE *drive, bool hibernate_flag) {
 	//CPU Cycle
 	unsigned long inst = 0;
 	while (CPU_Registers->R_PC < pc_max && !CPU_Registers->restart_trigger && CPU_Registers->power_state) { //FETCH till the program ends...
-		inst = fetch();
-		decode_execute(inst, drive);
+		decode_execute(fetch(), drive);
 	}
 	if (CPU_Registers->R_PC < pc_max) //Wait for the monitor's side to load stuff
 		pause_program();

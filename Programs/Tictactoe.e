@@ -35,7 +35,6 @@ REGSET S:174 c
 REGSET S:175 134 @F12
 @----------------------------------
 RUNPROC Memory_Init
-RUNPROC Render_Game
 REGSET Z 0 @Which player's turn is it? (0 Player 1 | 1 Player 2)
 REGSET Y 0 @Logic stuff
 :Next_Player_Input

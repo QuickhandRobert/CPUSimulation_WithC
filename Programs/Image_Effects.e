@@ -9,8 +9,10 @@ CONST C57 "3. Color Correction"
 CONST C55 "Enter Effect's Index (1 ~ n):"
 CONST C58 "Select Color Channel (R - G - B):"
 CONST C59 "Enter Correction Values (-255 ~ 255):"
-ERR E15 "File already exists!"
-ERR E16 "# is Invalid (Correction value must be between -255 and 255)"
+CONST C60 "File already exists!"
+CONST C61 "Number is Invalid (Correction value must be between -255 and 255)"
+@ERR E15 "File already exists!"
+@ERR E16 "Number is Invalid (Correction value must be between -255 and 255)"
 @--------------------------------
 @Frequently Used Values (Cache)
 REGSET S:150 3
@@ -360,7 +362,7 @@ NEG S:152
 LOWER X S:152 Y
 NEG S:152
 OR Y Z Y
-CRUN Y CERR E16 X
+CRUN Y OUTPUT C61
 CRUN Y OUTPUT S:100
 ENDPROC
 END
