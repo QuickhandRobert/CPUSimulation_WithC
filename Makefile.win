@@ -1,7 +1,3 @@
-# Project: Computer Simulator
-# Makefile created by Embarcadero Dev-C++ 6.3
-
-CPP      = g++.exe -D__DEBUG__
 CC       = gcc.exe -D__DEBUG__
 WINDRES  = windres.exe
 OBJ      = Harddrive.o Computer.o Memory.o Operations.o generalOperations.o CPU.o errorHandler.o audio.o
